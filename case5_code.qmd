@@ -1,0 +1,13 @@
+---
+title: "case5_code"
+format: html
+editor: visual
+---
+
+```{r}
+load("./strokeStudy.RData")
+```
+
+```{r}
+library(ggplot2)
+```
