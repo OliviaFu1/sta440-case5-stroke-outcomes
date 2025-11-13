@@ -12,9 +12,21 @@ load("./strokeStudy.RData")
 library(ggplot2)
 library(naniar)
 library(dplyr)
+library(tidyr)
+library(knitr)
+library(patchwork)
 ```
 
 # EDA
+
+## Missing values
+
+```{r}
+# Missing -> NA for Race2
+x <- x |>
+  mutate(Race2 = na_if(Race2, "Missing"),
+         EMSvsCar = as.factor(EMSvsCar))
+```
 
 ```{r}
 x |>
@@ -24,7 +36,106 @@ x |>
 ```
 
 ```{r}
+missing_count <- x |>
+  select(-Time2, -siteID) |>
+  summarise(across(
+    everything(),
+    ~ sum(is.na(.))
+  )) |>
+  pivot_longer(everything(),
+               names_to = "Variable",
+               values_to = "n_missing") %>%
+  arrange(desc(n_missing))
 
+kable(missing_count)
+```
+
+```{r}
+vars_to_check <- c("Age", "PreHospNotify", "EMSvsCar", "homeOrRehab", "Race2")
+
+missing_by_time <- x |>
+  group_by(Time2) |>
+  summarise(across(all_of(vars_to_check), ~sum(is.na(.)))) |>
+  pivot_longer(-Time2, names_to = "Variable", values_to = "n_missing")
+
+ggplot(missing_by_time, aes(x = Time2, y = n_missing, group = Variable, color = Variable)) +
+  geom_line(size = 1) +
+  geom_point(size = 3) +
+  labs(title = "Missing Value Counts by Quarter",
+       x = "Time (Quarter)",
+       y = "Number of Missing Values",
+       color = "Variable") +
+  theme_minimal(base_size = 14) +
+  scale_color_brewer(palette = "Set2")
+```
+
+## Covariates & Associations
+
+```{r}
+ggplot(x, aes(x = Age)) +
+  geom_histogram(bins = 20) +
+  facet_wrap(~ siteID) +
+  labs(title = "Age Distribution by Site", x="Age", y="Count") +
+  theme_minimal()
+
+x |>
+  group_by(siteID, Gender) |>
+  summarise(n = n()) |>
+  ggplot(aes(x = siteID, y = n, fill = Gender)) +
+  geom_bar(stat="identity", position="fill") +
+  labs(title="Gender Distribution by Site", y="Proportion") +
+  theme_minimal()
+
+x |>
+  group_by(siteID, Race2) |>
+  summarise(n = n()) |>
+  ggplot(aes(x = siteID, y = n, fill = Race2)) +
+  geom_bar(stat="identity", position="fill") +
+  labs(title="Gender Distribution by Site", y="Proportion") +
+  theme_minimal()
+```
+
+```{r}
+p1 <- ggplot(x, aes(x = hadTPA, fill = homeOrRehab)) +
+  geom_bar(position = "fill") +
+  labs(title="Outcome by TPA Treatment", y="Proportion") +
+  theme_minimal()
+
+p2 <- ggplot(x, aes(x = hadThrombectomy, fill = homeOrRehab)) +
+  geom_bar(position = "fill") +
+  labs(title="Outcome by Thrombectomy Treatment", y="Proportion") +
+  theme_minimal()
+
+p3 <- ggplot(x, aes(x = PreHospNotify, fill = homeOrRehab)) +
+  geom_bar(position = "fill") +
+  labs(title="Outcome by Pre Hospital Notify", y="Proportion") +
+  theme_minimal()
+
+p4 <- ggplot(x, aes(x = EMSvsCar, fill = homeOrRehab)) +
+  geom_bar(position = "fill") +
+  labs(title="Outcome by EMS vs Car", y="Proportion") +
+  theme_minimal()
+
+(p1+p2) / (p3+p4) +
+  plot_layout(guides = "collect") +
+  theme(legend.position = "right")
+```
+
+```{r}
+x |>
+  group_by(Time2, siteID) |>
+  summarise(GoodOutcome = mean(homeOrRehab, na.rm = TRUE), .groups = "drop") |>
+  ggplot(aes(x = Time2, y = GoodOutcome, group = siteID)) +  
+  geom_line() +
+  geom_point() +
+  facet_wrap(~siteID) +
+  labs(
+    title = "Proportion of Good Outcomes by Site Over Time",
+    y = "Proportion Discharged to Home/Rehab",
+    x = "Quarter"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
 # Frequentist model
