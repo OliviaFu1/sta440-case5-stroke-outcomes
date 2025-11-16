@@ -140,7 +140,7 @@ x |>
 
 # Frequentist model
 ```{r}
-linear_model<-lm(homeOrRehab~., x)
+linear_model<-glm(homeOrRehab~., x,family=binomial)
 summary(linear_model)
 ```
 
