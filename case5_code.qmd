@@ -69,6 +69,18 @@ ggplot(missing_by_time, aes(x = Time2, y = n_missing, group = Variable, color = 
   scale_color_brewer(palette = "Set2")
 ```
 
+## Missing Data Analysis
+```{r}
+library(naniar)
+vis_miss(x)
+
+gg_miss_var(x)
+gg_miss_fct(x,fct=homeOrRehab)
+
+```
+
+
+
 ## Covariates & Associations
 
 ```{r}
