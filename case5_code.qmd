@@ -101,6 +101,16 @@ ggplot(x,aes(x=homeOrRehab,fill=complete.cases(x)))+geom_density(alpha=0.5) #not
 
 ```
 
+## Data cleaning after knowing its not MCAR
+```{r}
+library(mice)
+
+missing_removed<-mice(x,m=5,method= "pmm",seed=2025)
+
+missing_removed_data<-complete(missing_removed)
+
+```
+
 
 
 ## Covariates & Associations
