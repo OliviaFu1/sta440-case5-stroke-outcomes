@@ -139,5 +139,11 @@ x |>
 ```
 
 # Frequentist model
+```{r}
+linear_model<-lm(homeOrRehab~., x)
+summary(linear_model)
+```
+
+
 
 # Bayesian model
