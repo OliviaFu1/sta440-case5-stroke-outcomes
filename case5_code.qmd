@@ -77,6 +77,28 @@ vis_miss(x)
 gg_miss_var(x)
 gg_miss_fct(x,fct=homeOrRehab)
 
+
+x_subset<-x
+
+x_subset$missingvals<-is.na(x)
+
+#summary(glm(missingvals~homeOrRehab,data=x_subset))
+
+
+
+#checking for mcar
+
+complete_subset<- x[complete.cases(x),]
+incomplete_subset<-x[!complete.cases(x),]
+
+summary(complete_subset)
+summary(incomplete_subset)
+
+ggplot(x,aes(x=homeOrRehab,fill=complete.cases(x)))+geom_density(alpha=0.5) #not mcar, must be mnar or mar
+
+
+
+
 ```
 
 
