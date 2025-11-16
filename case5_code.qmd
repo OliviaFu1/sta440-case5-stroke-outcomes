@@ -122,6 +122,35 @@ p4 <- ggplot(x, aes(x = EMSvsCar, fill = homeOrRehab)) +
 ```
 
 ```{r}
+p5 <- ggplot(x, aes(x = Gender, fill = homeOrRehab)) +
+  geom_bar(position = "fill") +
+  labs(title="Outcome by Gender", y="Proportion") +
+  theme_minimal()
+
+p6 <- ggplot(x, aes(x = Race2, fill = homeOrRehab)) +
+  geom_bar(position = "fill") +
+  labs(title="Outcome by Race", y="Proportion") +
+  theme_minimal()
+
+p7 <- ggplot(x, aes(x = thrComplic, fill = homeOrRehab)) +
+  geom_bar(position = "fill") +
+  labs(title="Outcome by Complications \n During Thrombectomy \nSurgery", y="Proportion") +
+  theme_minimal()
+
+p8 <- ggplot(x, aes(x = tpaComplic, fill = homeOrRehab)) +
+  geom_bar(position = "fill") +
+  labs(title="Outcome by \nComplications During TPA \nSurgery", y="Proportion") +
+  theme_minimal()
+
+(p5+p6) / (p7+p8) +
+  plot_layout(guides = "collect") +
+  theme(legend.position = "right")
+```
+
+
+
+
+```{r}
 x |>
   group_by(Time2, siteID) |>
   summarise(GoodOutcome = mean(homeOrRehab, na.rm = TRUE), .groups = "drop") |>
