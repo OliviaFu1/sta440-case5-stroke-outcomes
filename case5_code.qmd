@@ -24,8 +24,14 @@ library(patchwork)
 ```{r}
 # Missing -> NA for Race2
 x <- x |>
-  mutate(Race2 = na_if(Race2, "Missing"),
-         EMSvsCar = as.factor(EMSvsCar))
+  mutate(
+    Race2 = na_if(Race2, "Missing"),
+    EMSvsCar = case_when(
+      EMSvsCar == 1 ~ "EMS",
+      EMSvsCar == 0 ~ "Car",
+      TRUE ~ NA_character_
+    )
+  )
 ```
 
 ```{r}
@@ -153,27 +159,39 @@ x |>
 ```{r}
 p1 <- ggplot(x, aes(x = hadTPA, fill = homeOrRehab)) +
   geom_bar(position = "fill") +
-  labs(title="Outcome by TPA Treatment", y="Proportion") +
+  labs(title = "By TPA Treatment", y = "Proportion") +
   theme_minimal()
 
 p2 <- ggplot(x, aes(x = hadThrombectomy, fill = homeOrRehab)) +
   geom_bar(position = "fill") +
-  labs(title="Outcome by Thrombectomy Treatment", y="Proportion") +
+  labs(title = "By Thrombectomy", y = "Proportion") +
   theme_minimal()
 
 p3 <- ggplot(x, aes(x = PreHospNotify, fill = homeOrRehab)) +
   geom_bar(position = "fill") +
-  labs(title="Outcome by Pre Hospital Notify", y="Proportion") +
+  labs(title = "By Pre-Hospital Notification", y = "Proportion") +
   theme_minimal()
 
 p4 <- ggplot(x, aes(x = EMSvsCar, fill = homeOrRehab)) +
   geom_bar(position = "fill") +
-  labs(title="Outcome by EMS vs Car", y="Proportion") +
+  labs(title = "By Arrival Method", y = "Proportion") +
   theme_minimal()
 
-(p1+p2) / (p3+p4) +
+p5 <- ggplot(x, aes(x = thrComplic, fill = homeOrRehab)) +
+  geom_bar(position = "fill") +
+  labs(title = "By Thrombectomy \nComplications", y = "Proportion") +
+  theme_minimal()
+
+p6 <- ggplot(x, aes(x = tpaComplic, fill = homeOrRehab)) +
+  geom_bar(position = "fill") +
+  labs(title = "By TPA \nComplications", y = "Proportion") +
+  theme_minimal()
+
+(p1 + p2 + p3) / (p6 + p5 + p4) +
   plot_layout(guides = "collect") +
-  theme(legend.position = "right")
+  plot_annotation(
+    title = "Patient Discharge Outcomes by Treatment and Pre-Hospital Factors"
+  )
 ```
 
 ```{r}
@@ -184,20 +202,13 @@ p5 <- ggplot(x, aes(x = Gender, fill = homeOrRehab)) +
 
 p6 <- ggplot(x, aes(x = Race2, fill = homeOrRehab)) +
   geom_bar(position = "fill") +
-  labs(title="Outcome by Race", y="Proportion") +
-  theme_minimal()
+  labs(title = "Outcome by Race", y = "Proportion") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
 
-p7 <- ggplot(x, aes(x = thrComplic, fill = homeOrRehab)) +
-  geom_bar(position = "fill") +
-  labs(title="Outcome by Complications \n During Thrombectomy \nSurgery", y="Proportion") +
-  theme_minimal()
-
-p8 <- ggplot(x, aes(x = tpaComplic, fill = homeOrRehab)) +
-  geom_bar(position = "fill") +
-  labs(title="Outcome by \nComplications During TPA \nSurgery", y="Proportion") +
-  theme_minimal()
-
-(p5+p6) / (p7+p8) +
+(p5+p6) +
   plot_layout(guides = "collect") +
   theme(legend.position = "right")
 ```
@@ -231,9 +242,10 @@ plot(linear_model_missing)
 ```{r}
 library(lme4)
 model_mixed <- glmer(homeOrRehab ~ EMSvsCar + PreHospNotify + hadThrombectomy +
-                    hadTPA + tpaComplic + thrComplic + Age + Gender + Race2 + period +
+                    hadTPA + tpaComplic + thrComplic + Age + period +
                     (1 | siteID),
-                    data = x, family = binomial)
+                    data = missing_removed_data, family = binomial)
+
 summary(model_mixed)
 ```
 
