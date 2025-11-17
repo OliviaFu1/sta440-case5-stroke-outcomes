@@ -109,7 +109,8 @@ library(mice)
 
 missing_removed<-mice(x,m=5,method= "pmm",seed=2025)
 
-missing_removed_data<-complete(missing_removed)
+#doesnt do anything different from mice
+#missing_removed_data<-complete(missing_removed)
 
 ```
 
@@ -211,7 +212,7 @@ x |>
 # Frequentist model
 
 ```{r}
-linear_model<-glm(homeOrRehab~., x,family=binomial)
+linear_model<-glm(homeOrRehab~., missing_removed_data,family=binomial)
 summary(linear_model)
 ```
 
