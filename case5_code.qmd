@@ -241,12 +241,45 @@ plot(linear_model_missing)
 
 ```{r}
 library(lme4)
+
+missing_removed_data <- missing_removed_data |>
+  mutate(Age_c = Age - mean(Age, na.rm = TRUE))
+
 model_mixed <- glmer(homeOrRehab ~ EMSvsCar + PreHospNotify + hadThrombectomy +
-                    hadTPA + tpaComplic + thrComplic + Age + period +
+                    hadTPA + tpaComplic + thrComplic + Age_c + period + Gender +
+                    (1 | siteID),
+                    data = missing_removed_data, family = binomial)
+
+model_mixed2 <- glmer(homeOrRehab ~ EMSvsCar + PreHospNotify + hadThrombectomy +
+                    hadTPA + tpaComplic + thrComplic + Age_c + period + Gender + Race2 +
                     (1 | siteID),
                     data = missing_removed_data, family = binomial)
 
 summary(model_mixed)
+anova(model_mixed, model_mixed2)
+```
+
+```{r}
+missing_removed_data$resid <- residuals(model_mixed, type = "pearson")
+missing_removed_data$fitted <- fitted(model_mixed)
+
+ggplot(missing_removed_data, aes(x = fitted, y = resid)) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "Pearson Residuals vs Fitted Values",
+       x = "Fitted Values",
+       y = "Pearson Residuals") +
+  theme_minimal()
+
+library(arm)
+binnedplot(fitted(model_mixed), residuals(model_mixed, type = "pearson"),
+           xlab = "Fitted probabilities",
+           ylab = "Average Pearson residuals",
+           main = "Binned Residual Plot")
 ```
 
 # Bayesian model
+
+```{r}
+
+```
