@@ -212,8 +212,13 @@ x |>
 # Frequentist model
 
 ```{r}
-linear_model<-glm(homeOrRehab~., missing_removed_data,family=binomial)
-summary(linear_model)
+linear_model_missing<-glm(homeOrRehab~., missing_removed_data,family=binomial)
+summary(linear_model_missing)
+
+plot(linear_model_missing)
+
+
+
 ```
 
 # Bayesian model
