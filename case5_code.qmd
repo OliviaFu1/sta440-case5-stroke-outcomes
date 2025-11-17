@@ -85,6 +85,8 @@ vis_miss(x)
 gg_miss_var(x)
 gg_miss_fct(x,fct=homeOrRehab)
 
+gg_miss_fct(x |> dplyr::select(where(~ any(is.na(.)))),fct=homeOrRehab)
+
 x_subset<-x
 x_subset$missingvals<-is.na(x)
 #summary(glm(missingvals~homeOrRehab,data=x_subset))
@@ -102,21 +104,42 @@ ggplot(x,aes(x=homeOrRehab,fill=complete.cases(x)))+geom_density(alpha=0.5) #not
 ```{r}
 library(naniar)
 library(ggplot2)
-vis_miss(x)
-gg_miss_upset(x)
+x %>%
+  dplyr::select(where(~ any(is.na(.)))) %>%  
+  vis_miss()
 
+gg_miss_upset(x)
 ```
 
 ```{r}
-x$miss_Age           <- ifelse(is.na(x$Age), 1, 0)
-x$miss_PreHospNotify <- ifelse(is.na(x$PreHospNotify), 1, 0)
-x$miss_Race2         <- ifelse(is.na(x$Race2), 1, 0)
-x$miss_EMSvsCar      <- ifelse(is.na(x$EMSvsCar), 1, 0)
-x$miss_homeOrRehab   <- ifelse(is.na(x$homeOrRehab), 1, 0)
+library(tidyr)
 
-table(x$miss_Age, x$Gender) |> chisq.test()
-table(x$miss_Age, x$Race2)  |> chisq.test()
-table(x$miss_Age, x$siteID) |> chisq.test()
+vars_with_missing <- c("Age", "Race2", "EMSvsCar", "PreHospNotify", "homeOrRehab")
+
+x |>
+  mutate(across(all_of(vars_with_missing),
+                ~ as.integer(is.na(.)),
+                .names = "{.col}_miss")) %>%
+  
+  pivot_longer(
+    cols = ends_with("_miss"),
+    names_to = "Variable",
+    values_to = "Missing"
+  ) %>%
+  
+  group_by(Time2, Variable) %>%
+  summarise(prop_missing = mean(Missing), .groups = "drop") %>%
+  
+  ggplot(aes(x = Time2, y = Variable, fill = prop_missing)) +
+  geom_tile() +
+  scale_fill_viridis_c(option = "plasma", name = "% Miss") +
+  labs(
+    title = "Missingness Heatmap by Quarter",
+    x = "Study Quarter",
+    y = "Variable"
+  ) +
+  theme_minimal() +
+  scale_y_discrete(labels = ~ gsub("_miss", "", .x))
 ```
 
 ## Data cleaning after knowing its not MCAR
@@ -124,8 +147,8 @@ table(x$miss_Age, x$siteID) |> chisq.test()
 ```{r}
 library(mice)
 
-missing_removed<-mice(x,m=5,method= "pmm",seed=2025)
-full_x<-complete(missing_removed)
+imp <- mice(x, m = 5, method = "pmm", seed = 2025)
+full_x <- complete(imp, 1)
 ```
 
 ## Covariates & Associations
@@ -251,21 +274,51 @@ plot(linear_model_missing)
 
 ```{r}
 library(lme4)
+library(miceadds)
 
-full_x <- full_x |>
-  mutate(Age_c = Age - mean(Age))
+imp_list <- complete(imp, "all")
 
-ctrl <- glmerControl(
-  optimizer = "bobyqa",
-  optCtrl   = list(maxfun = 1e6)
-)
+imp_list <- lapply(imp_list, \(d) {
+  d %>%
+    mutate(
+      period = case_when(
+        Time2 %in% c("Y1Q1", "Y1Q2") ~ "baseline",
+        Time2 %in% c("Y1Q3", "Y1Q4", "Y2Q1", "Y2Q2") ~ "middle",
+        Time2 %in% c("Y2Q3", "Y2Q4") ~ "end"
+      ),
+      period = factor(period, levels = c("baseline", "middle", "end")),
+      Age_c = Age - mean(Age, na.rm = TRUE)
+    )
+})
 
-model_mixed <- glmer(
-  homeOrRehab ~ EMSvsCar + PreHospNotify + hadThrombectomy +
-    hadTPA + tpaComplic + thrComplic + Age_c + period + Gender + Race2 +
-    (1 | siteID),
-  data = full_x, family = binomial, control = ctrl
-)
+models <- lapply(imp_list, \(d) {
+  glmer(
+    homeOrRehab ~ EMSvsCar + PreHospNotify + hadThrombectomy +
+      hadTPA + tpaComplic + thrComplic + Age_c + period + Gender + Race2 +
+      (1 | siteID),
+    data = d,
+    family = binomial,
+    control = glmerControl(
+      optimizer = "bobyqa",
+      optCtrl = list(maxfun = 1e6)
+    )
+  )
+})
+
+sapply(models, function(m) coef(summary(m))[,1])
+```
+
+```{r}
+full_x <- full_x |> 
+  mutate(Age_c = Age - mean(Age)) 
+
+ctrl <- glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e6) ) 
+
+model_mixed <- glmer( 
+  homeOrRehab ~ EMSvsCar + PreHospNotify + hadThrombectomy + 
+    hadTPA + tpaComplic + thrComplic + Age_c + period + Gender + Race2 + 
+    (1 | siteID), 
+  data = full_x, family = binomial, control = ctrl ) 
 
 summary(model_mixed)
 ```
