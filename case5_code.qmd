@@ -23,39 +23,28 @@ library(patchwork)
 
 ```{r}
 # Missing -> NA for Race2
-x <- x |>
+x <- x %>%
   mutate(
     Race2 = na_if(Race2, "Missing"),
     EMSvsCar = case_when(
       EMSvsCar == 1 ~ "EMS",
       EMSvsCar == 0 ~ "Car",
       TRUE ~ NA_character_
-    )
-  )
-```
-
-```{r}
-x <- x |>
-  mutate(
-    period = case_when(
-      Time2 %in% c("Y1Q1", "Y2Q2") ~ "baseline",
-      Time2 %in% c("Y1Q3", "Y1Q4", "Y2Q1", "Y2Q2") ~ "middle",
-      Time2 %in% c("Y2Q3", "Y2Q4") ~ "end"
     ),
-    period = factor(period, levels = c("baseline", "middle", "end"))
+    EMSvsCar = factor(EMSvsCar)
   )
 ```
 
 ```{r}
 x |>
-  select(-Time2) |>
+  dplyr::select(-Time2) |>
   gg_miss_var(facet = siteID) +
   labs(title = "Missing Data by Variable and Site")
 ```
 
 ```{r}
 missing_count <- x |>
-  select(-Time2, -siteID) |>
+  dplyr::select(-Time2, -siteID) |>
   summarise(across(
     everything(),
     ~ sum(is.na(.))
@@ -96,17 +85,11 @@ vis_miss(x)
 gg_miss_var(x)
 gg_miss_fct(x,fct=homeOrRehab)
 
-
 x_subset<-x
-
 x_subset$missingvals<-is.na(x)
-
 #summary(glm(missingvals~homeOrRehab,data=x_subset))
 
-
-
 #checking for mcar
-
 complete_subset<- x[complete.cases(x),]
 incomplete_subset<-x[!complete.cases(x),]
 
@@ -114,10 +97,26 @@ summary(complete_subset)
 summary(incomplete_subset)
 
 ggplot(x,aes(x=homeOrRehab,fill=complete.cases(x)))+geom_density(alpha=0.5) #not mcar, must be mnar or mar
+```
 
+```{r}
+library(naniar)
+library(ggplot2)
+vis_miss(x)
+gg_miss_upset(x)
 
+```
 
+```{r}
+x$miss_Age           <- ifelse(is.na(x$Age), 1, 0)
+x$miss_PreHospNotify <- ifelse(is.na(x$PreHospNotify), 1, 0)
+x$miss_Race2         <- ifelse(is.na(x$Race2), 1, 0)
+x$miss_EMSvsCar      <- ifelse(is.na(x$EMSvsCar), 1, 0)
+x$miss_homeOrRehab   <- ifelse(is.na(x$homeOrRehab), 1, 0)
 
+table(x$miss_Age, x$Gender) |> chisq.test()
+table(x$miss_Age, x$Race2)  |> chisq.test()
+table(x$miss_Age, x$siteID) |> chisq.test()
 ```
 
 ## Data cleaning after knowing its not MCAR
@@ -126,8 +125,7 @@ ggplot(x,aes(x=homeOrRehab,fill=complete.cases(x)))+geom_density(alpha=0.5) #not
 library(mice)
 
 missing_removed<-mice(x,m=5,method= "pmm",seed=2025)
-missing_removed_data<-complete(missing_removed)
-
+full_x<-complete(missing_removed)
 ```
 
 ## Covariates & Associations
@@ -233,7 +231,19 @@ x |>
 # Frequentist model
 
 ```{r}
-linear_model_missing<-glm(homeOrRehab~., missing_removed_data,family=binomial)
+full_x <- full_x |>
+  mutate(
+    period = case_when(
+      Time2 %in% c("Y1Q1", "Y1Q2") ~ "baseline",
+      Time2 %in% c("Y1Q3", "Y1Q4", "Y2Q1", "Y2Q2") ~ "middle",
+      Time2 %in% c("Y2Q3", "Y2Q4") ~ "end"
+    ),
+    period = factor(period, levels = c("baseline", "middle", "end"))
+  )
+```
+
+```{r}
+linear_model_missing<-glm(homeOrRehab~., full_x,family=binomial)
 summary(linear_model_missing)
 
 plot(linear_model_missing)
@@ -242,8 +252,8 @@ plot(linear_model_missing)
 ```{r}
 library(lme4)
 
-missing_removed_data <- missing_removed_data |>
-  mutate(Age_c = Age - mean(Age, na.rm = TRUE))
+full_x <- full_x |>
+  mutate(Age_c = Age - mean(Age))
 
 ctrl <- glmerControl(
   optimizer = "bobyqa",
@@ -254,17 +264,17 @@ model_mixed <- glmer(
   homeOrRehab ~ EMSvsCar + PreHospNotify + hadThrombectomy +
     hadTPA + tpaComplic + thrComplic + Age_c + period + Gender + Race2 +
     (1 | siteID),
-  data = missing_removed_data, family = binomial, control = ctrl
+  data = full_x, family = binomial, control = ctrl
 )
 
 summary(model_mixed)
 ```
 
 ```{r}
-missing_removed_data$resid <- residuals(model_mixed, type = "pearson")
-missing_removed_data$fitted <- fitted(model_mixed)
+full_x$resid <- residuals(model_mixed, type = "pearson")
+full_x$fitted <- fitted(model_mixed)
 
-ggplot(missing_removed_data, aes(x = fitted, y = resid)) +
+ggplot(full_x, aes(x = fitted, y = resid)) +
   geom_point(alpha = 0.6) +
   geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
   labs(title = "Pearson Residuals vs Fitted Values",
@@ -277,6 +287,73 @@ binnedplot(fitted(model_mixed), residuals(model_mixed, type = "pearson"),
            xlab = "Fitted probabilities",
            ylab = "Average Pearson residuals",
            main = "Binned Residual Plot")
+```
+
+```{r}
+full_x$pred_prob <- predict(model_mixed, type = "response")
+
+race_comp <- full_x |>
+  group_by(Race2) |>
+  summarise(
+    n = n(),
+    observed_pct = mean(homeOrRehab == 1, na.rm = TRUE) * 100,
+    predicted_pct = mean(pred_prob, na.rm = TRUE) * 100
+  )
+
+race_comp
+```
+
+```{r}
+full_x <- full_x |>
+  mutate(
+    age_group = cut(
+      Age,
+      breaks = c(0, 40, 60, 80, Inf),
+      labels = c("<40", "40–59", "60–79", "80+"),
+      right = FALSE
+    )
+  )
+
+age_comp <- full_x |>
+  group_by(age_group) |>
+  summarise(
+    n = n(),
+    observed_pct = mean(homeOrRehab == 1, na.rm = TRUE) * 100,
+    predicted_pct = mean(pred_prob, na.rm = TRUE) * 100
+  )
+
+age_comp
+```
+
+```{r}
+library(dplyr)
+
+binary_vars <- c("hadTPA", "hadThrombectomy", "tpaComplic",
+                 "thrComplic", "PreHospNotify", "EMSvsCar")
+
+full_x <- full_x |>
+  mutate(across(all_of(binary_vars), as.factor))
+
+comp_list <- lapply(binary_vars, function(var) {
+  full_x |>
+    group_by(.data[[var]]) |>
+    summarise(
+      n = n(),
+      observed_pct = mean(homeOrRehab == 1, na.rm = TRUE) * 100,
+      predicted_pct = mean(pred_prob, na.rm = TRUE) * 100,
+      .groups = "drop"
+    ) |>
+    mutate(variable = var)
+}) |>
+  bind_rows()
+
+comp_list |>
+  rowwise() |>
+  mutate(
+    level = first(na.omit(c_across(all_of(binary_vars)))),
+  ) |>
+  ungroup() |>
+  dplyr::select(variable, level, n, observed_pct, predicted_pct)
 ```
 
 # Bayesian model
