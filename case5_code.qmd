@@ -29,6 +29,18 @@ x <- x |>
 ```
 
 ```{r}
+x <- x |>
+  mutate(
+    period = case_when(
+      Time2 %in% c("Y1Q1", "Y2Q2") ~ "baseline",
+      Time2 %in% c("Y1Q3", "Y1Q4", "Y2Q1", "Y2Q2") ~ "middle",
+      Time2 %in% c("Y2Q3", "Y2Q4") ~ "end"
+    ),
+    period = factor(period, levels = c("baseline", "middle", "end"))
+  )
+```
+
+```{r}
 x |>
   select(-Time2) |>
   gg_miss_var(facet = siteID) +
@@ -108,9 +120,7 @@ ggplot(x,aes(x=homeOrRehab,fill=complete.cases(x)))+geom_density(alpha=0.5) #not
 library(mice)
 
 missing_removed<-mice(x,m=5,method= "pmm",seed=2025)
-
-#doesnt do anything different from mice
-#missing_removed_data<-complete(missing_removed)
+missing_removed_data<-complete(missing_removed)
 
 ```
 
@@ -216,9 +226,15 @@ linear_model_missing<-glm(homeOrRehab~., missing_removed_data,family=binomial)
 summary(linear_model_missing)
 
 plot(linear_model_missing)
+```
 
-
-
+```{r}
+library(lme4)
+model_mixed <- glmer(homeOrRehab ~ EMSvsCar + PreHospNotify + hadThrombectomy +
+                    hadTPA + tpaComplic + thrComplic + Age + Gender + Race2 + period +
+                    (1 | siteID),
+                    data = x, family = binomial)
+summary(model_mixed)
 ```
 
 # Bayesian model
