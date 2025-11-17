@@ -245,18 +245,19 @@ library(lme4)
 missing_removed_data <- missing_removed_data |>
   mutate(Age_c = Age - mean(Age, na.rm = TRUE))
 
-model_mixed <- glmer(homeOrRehab ~ EMSvsCar + PreHospNotify + hadThrombectomy +
-                    hadTPA + tpaComplic + thrComplic + Age_c + period + Gender +
-                    (1 | siteID),
-                    data = missing_removed_data, family = binomial)
+ctrl <- glmerControl(
+  optimizer = "bobyqa",
+  optCtrl   = list(maxfun = 1e6)
+)
 
-model_mixed2 <- glmer(homeOrRehab ~ EMSvsCar + PreHospNotify + hadThrombectomy +
-                    hadTPA + tpaComplic + thrComplic + Age_c + period + Gender + Race2 +
-                    (1 | siteID),
-                    data = missing_removed_data, family = binomial)
+model_mixed <- glmer(
+  homeOrRehab ~ EMSvsCar + PreHospNotify + hadThrombectomy +
+    hadTPA + tpaComplic + thrComplic + Age_c + period + Gender + Race2 +
+    (1 | siteID),
+  data = missing_removed_data, family = binomial, control = ctrl
+)
 
 summary(model_mixed)
-anova(model_mixed, model_mixed2)
 ```
 
 ```{r}
