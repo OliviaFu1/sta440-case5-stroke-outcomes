@@ -354,7 +354,7 @@ race_comp <- full_x |>
     predicted_pct = mean(pred_prob, na.rm = TRUE) * 100
   )
 
-race_comp
+kable(race_comp, digits = 3)
 ```
 
 ```{r}
@@ -376,7 +376,7 @@ age_comp <- full_x |>
     predicted_pct = mean(pred_prob, na.rm = TRUE) * 100
   )
 
-age_comp
+kable(age_comp, digits = 3)
 ```
 
 ```{r}
@@ -401,13 +401,51 @@ comp_list <- lapply(binary_vars, function(var) {
 }) |>
   bind_rows()
 
-comp_list |>
+comp_clean <- comp_list |>
   rowwise() |>
   mutate(
     level = first(na.omit(c_across(all_of(binary_vars)))),
   ) |>
   ungroup() |>
   dplyr::select(variable, level, n, observed_pct, predicted_pct)
+
+kable(comp_clean, digits = 3)
+```
+
+```{r}
+full_x$pred_prob <- predict(model_mixed, type = "response")
+y_true <- full_x$homeOrRehab
+
+library(pROC)
+library(ggplot2)
+
+roc_df <- data.frame(
+  tpr = roc_obj$sensitivities,
+  fpr = 1 - roc_obj$specificities
+)
+
+ggplot(roc_df, aes(x = fpr, y = tpr)) +
+  geom_line(color = "blue", size = 1.2) +
+  geom_abline(linetype = "dashed") +
+  coord_fixed(xlim = c(0,1), ylim = c(0,1)) +  # square
+  labs(x = "False Positive Rate (1 - Specificity)",
+       y = "True Positive Rate (Sensitivity)",
+       title = "ROC Curve (Square)") +
+  theme_bw(base_size = 14)
+```
+
+```{r}
+library(caret)
+
+threshold <- 0.5
+full_x$pred_class <- ifelse(full_x$pred_prob > threshold, 1, 0)
+full_x$homeOrRehab <- ifelse(full_x$homeOrRehab, 1, 0)
+
+confusionMatrix(
+  factor(full_x$pred_class),
+  factor(full_x$homeOrRehab),
+  positive = "1"
+)
 ```
 
 # Bayesian model
