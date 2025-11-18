@@ -148,6 +148,7 @@ x |>
 library(mice)
 
 imp <- mice(x, m = 5, method = "pmm", seed = 2025)
+plot(imp)
 full_x <- complete(imp, 1)
 ```
 
