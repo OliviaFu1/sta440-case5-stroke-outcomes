@@ -430,7 +430,7 @@ ggplot(roc_df, aes(x = fpr, y = tpr)) +
   coord_fixed(xlim = c(0,1), ylim = c(0,1)) +  # square
   labs(x = "False Positive Rate (1 - Specificity)",
        y = "True Positive Rate (Sensitivity)",
-       title = "ROC Curve (Square)") +
+       title = "ROC Curve") +
   theme_bw(base_size = 14)
 ```
 
