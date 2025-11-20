@@ -94,7 +94,7 @@ fun.params <- c(
   "beta_transport","beta_notify","beta_TPA","beta_Thromb",
   "beta_tpaComp","beta_thrComp",
 
-  # Race model
+  # Race modelc
   "pi_race",
 
   # Transport model
