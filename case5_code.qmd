@@ -447,9 +447,3 @@ confusionMatrix(
   positive = "1"
 )
 ```
-
-# Bayesian model
-
-```{r}
-
-```

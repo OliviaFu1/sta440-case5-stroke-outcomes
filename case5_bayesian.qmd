@@ -1,0 +1,129 @@
+---
+title: "case5_bayesian"
+format: html
+editor: visual
+---
+
+```{r}
+load("./strokeStudy.RData")
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(knitr)
+library(patchwork)
+
+library(rjags)
+library(R2jags)
+library(coda)
+```
+
+# Data cleaning
+
+```{r}
+# Missing -> NA for Race2
+x$Race2[x$Race2=="Missing"]<-NA
+x$Race2<-factor(x$Race2)
+```
+
+```{r}
+# Mapping of factors to numbers in the next step
+show_mapping <- function(f){
+  data.frame(
+    code  = seq_along(levels(f)),
+    level = levels(f)
+  )
+}
+
+show_mapping(x$siteID)
+show_mapping(x$Time2)
+show_mapping(x$Gender)
+show_mapping(x$Race2)
+```
+
+```{r}
+# Convert all factors to integer indices
+x$siteID  <- as.numeric(factor(x$siteID))   # becomes 1..9
+x$Time2   <- as.numeric(factor(x$Time2))    # becomes 1..8
+x$Gender  <- as.numeric(factor(x$Gender))   # becomes 1..2
+x$Race2   <- as.numeric(factor(x$Race2))    # becomes 1..3
+```
+
+```{r}
+# Convert logicals to 0/1
+logical_vars <- c("hadTPA","hadThrombectomy","tpaComplic","thrComplic","homeOrRehab")
+x[logical_vars] <- lapply(x[logical_vars], function(v) as.numeric(v))
+```
+
+```{r}
+# Convert PreHospNotify (Yes/No) to 0/1
+x$PreHospNotify <- ifelse(x$PreHospNotify == "Yes", 1,
+                           ifelse(x$PreHospNotify == "No", 0, NA))
+
+# Convert EMSvsCar (currently dbl) to 0/1 integer
+x$EMSvsCar <- as.integer(x$EMSvsCar)
+```
+
+# Bayesian approach
+
+```{r}
+# Build the data list for JAGS
+bdat <- list(
+  N = nrow(x),
+  Y = x$homeOrRehab,
+  Site = x$siteID,
+  Time = x$Time2,
+  Age = x$Age,
+  Gender = x$Gender,
+  Race = x$Race2,
+  Transport = x$EMSvsCar,
+  Notify = x$PreHospNotify,
+  hadTPA = x$hadTPA,
+  hadThrombectomy = x$hadThrombectomy,
+  tpaComplic = x$tpaComplic,
+  thrComplic = x$thrComplic
+)
+```
+
+```{r}
+fun.params <- c(
+  # outcome
+  "beta0","beta_site","beta_time","beta_age","beta_gender","beta_race",
+  "beta_transport","beta_notify","beta_TPA","beta_Thromb",
+  "beta_tpaComp","beta_thrComp",
+
+  # Race model
+  "pi_race",
+
+  # Transport model
+  "gamma0","gamma_site","gamma_race",
+
+  # Notify model
+  "delta0","delta_site","delta_race",
+
+  # Age model
+  "eta0","eta_site","eta_race","eta_transport","eta_notify",
+  "sigma_A" # Variance
+)
+```
+
+```{r}
+set.seed(440)
+fun.model.file <- "model_stroke.R" 
+mcmc.pars <- list(iter = 50000, burn = 10000, nchain=4, thin=1)
+
+jags.out <- jags(
+  data = bdat,
+  inits = NULL,
+  parameters.to.save = fun.params,
+  model.file = fun.model.file,
+  n.chains = mcmc.pars$nchain,
+  n.iter = mcmc.pars$iter,
+  n.burnin = mcmc.pars$burn,
+  n.thin = mcmc.pars$thin,
+  DIC = FALSE,
+  progress.bar = "none"
+)
+```
