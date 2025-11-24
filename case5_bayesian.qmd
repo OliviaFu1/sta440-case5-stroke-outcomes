@@ -66,6 +66,59 @@ x$PreHospNotify <- ifelse(x$PreHospNotify == "Yes", 1,
 x$EMSvsCar <- as.integer(x$EMSvsCar)
 ```
 
+# Missingness pattern
+
+```{r}
+x$M_A      <- ifelse(is.na(x$Age), 1, 0)
+x$M_notify <- ifelse(is.na(x$PreHospNotify), 1, 0)
+x$M_trans  <- ifelse(is.na(x$EMSvsCar), 1, 0)
+x$M_race   <- ifelse(is.na(x$Race2), 1, 0)
+```
+
+```{r}
+fit_MA <- glm(
+  M_A ~ EMSvsCar + PreHospNotify + hadThrombectomy + hadTPA + tpaComplic + thrComplic + 
+    Time2 + Gender + Race2 + siteID,
+  data = x,
+  family = binomial
+)
+
+summary(fit_MA)
+```
+
+```{r}
+fit_M_notify <- glm(
+  M_notify ~ EMSvsCar + hadThrombectomy + hadTPA + tpaComplic + thrComplic + 
+    Time2 + Gender + Race2 + siteID,
+  data = x,
+  family = binomial
+)
+
+summary(fit_M_notify)
+```
+
+```{r}
+fit_M_trans <- glm(
+  M_trans ~ hadThrombectomy + hadTPA + tpaComplic + thrComplic + 
+    Time2 + Gender + Race2 + siteID,
+  data = x,
+  family = binomial
+)
+
+summary(fit_M_trans)
+```
+
+```{r}
+fit_M_race <- glm(
+  M_race ~ hadThrombectomy + hadTPA + tpaComplic + thrComplic + 
+    Time2 + Gender + siteID,
+  data = x,
+  family = binomial
+)
+
+summary(fit_M_race)
+```
+
 # Bayesian approach
 
 ```{r}
@@ -89,7 +142,7 @@ bdat <- list(
 
 ```{r}
 fun.params <- c(
-  # outcome
+  # outcome model
   "beta0","beta_site","beta_time","beta_age","beta_gender","beta_race",
   "beta_transport","beta_notify","beta_TPA","beta_Thromb",
   "beta_tpaComp","beta_thrComp",
@@ -98,14 +151,15 @@ fun.params <- c(
   "pi_race",
 
   # Transport model
-  "gamma0","gamma_site","gamma_race",
+  "gamma0","gamma_site","gamma_Thromb","gamma_TPA",
+  "gamma_thrComp","gamma_tpaComp",
 
   # Notify model
-  "delta0","delta_site","delta_race",
+  "delta0","delta_site","delta_race","delta_time",
 
   # Age model
-  "eta0","eta_site","eta_race","eta_transport","eta_notify",
-  "sigma_A" # Variance
+  "eta0","eta_site","eta_race","eta_time",
+  "sigma_A"
 )
 ```
 
