@@ -23,11 +23,11 @@ The primary research question is whether the probability of a good discharge out
 
 The dataset contains 1,752 patient encounters with patient demographics, arrival mode (EMS vs. car), pre-hospital notification status, treatment characteristics, complications, and discharge disposition. However, several variables show substantial missingness, specifically age (46%), pre-hospital notification (12%), EMS vs. car (5%), Race2 (5%), and the outcome variable (3%) (Figure @ref(fig:eda1)). Missingness varies by site, by study quarter, and by outcome category, ruling out a Missing Completely at Random (MCAR) and suggesting a approach to handling Missing at Random (MAR) patterns (Figure @ref(fig:eda3)).
 
-Because the outcome depends on multiple partially observed predictors, and because missingness is structured by site and time, the analysis requires both a careful exploratory evaluation of missing-data patterns and a joint modeling framework that appropriately handles incomplete covariates. Multiple Imputation by Chained Equations (MICE) is therefore used to create complete datasets under an MAR assumption, which are then analyzed using frequentist logistic regression and mixed-effects models to assess both patient-level associations and changes in outcomes over time.
+Because the outcome depends on multiple partially observed predictors, and because missingness is structured by site and time, the analysis requires both a careful exploratory evaluation of missing-data patterns and a joint modeling framework that appropriately handles incomplete covariates. Multiple Imputation by Chained Equations (MICE) is therefore used to create complete datasets under an MAR assumption, which are then analyzed using frequentist logistic regression and mixed-effects models to assess both patient-level associations and changes in outcomes over time (Figure @ref(fig:eda4)).
 
 # Exploratory Data Analysis
 
-We began by examining patterns of missingness across the dataset, since five key variables, Age (46%), PreHospNotify (12%), EMSvsCar (5%), Race2 (5%), and the outcome homeOrRehab (3%), contained missing values. Age had by far the highest proportion of missingness, and visualizations showed that missingness was not randomly distributed. Instead, it varied substantially by site and study quarter: Age and PreHospNotify were heavily missing in the early baseline period (Y1Q1), then steadily improved in later quarters, consistent with early implementation and documentation challenges. Certain hospitals exhibited extreme patterns (e.g., Site 170 with nearly all Age values missing), suggesting site-level operational or reporting issues. Missingness also differed across levels of the outcome, particularly for PreHospNotify and Age, indicating that the probability of being missing relates to other observed variables. Together, these patterns allowed us to rule out MCAR and conclude that the missingness mechanism is most consistent with Missing at Random (MAR), motivating the use of MICE with predictive mean matching. Diagnostics from the imputation process showed stable mean and variance traces across all five imputations, indicating good convergence.
+We began by examining patterns of missingness across the dataset, since five key variables, Age (46%), PreHospNotify (12%), EMSvsCar (5%), Race2 (5%), and the outcome homeOrRehab (3%), contained missing values. Age had by far the highest proportion of missingness, and visualizations showed that missingness was not randomly distributed. Instead, it varied substantially by site and study quarter: Age and PreHospNotify were heavily missing in the early baseline period (Y1Q1), then steadily improved in later quarters, consistent with early implementation and documentation challenges. Certain hospitals exhibited extreme patterns (e.g., Site 170 with nearly all Age values missing), suggesting site-level operational or reporting issues. Missingness also differed across levels of the outcome, particularly for PreHospNotify and Age, indicating that the probability of being missing relates to other observed variables. Together, these patterns allowed us to rule out MCAR and conclude that the missingness mechanism is most consistent with Missing at Random (MAR), motivating the use of MICE with predictive mean matching (Figure @ref(fig:eda3)). Diagnostics from the imputation process showed stable mean and variance traces across all five imputations, indicating good convergence(Figure @ref(fig:eda4)).
 
 Beyond missingness, we explored how demographic and clinical characteristics varied across sites and how they related to discharge disposition. Age distributions differed meaningfully by center, and racial composition varied, with some sites treating predominantly Caucasian patients while others had higher proportions of African American or Other race groups. Associations with the outcome followed clinically plausible patterns: patients experiencing TPA or thrombectomy complications had substantially worse outcomes, EMS transport (a proxy for stroke severity) was associated with a lower probability of home/rehab discharge, and TPA treatment corresponded to improved outcomes. Older age, female gender, and African American/Other race groups showed lower rates of favorable discharge. When outcomes were plotted over time, several sites displayed modest improvement from baseline to the end of the study period, though the magnitude varied widely by hospital. These observations underscored the need for statistical modeling that accounts for site heterogeneity, temporal trends, and the non-random missingness structure identified in the EDA.
 
@@ -203,12 +203,15 @@ full_x <- complete(imp, 1)
 
 ## Covariates & Associations
 
-```{r}
+```{r label = "eda5", echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Age Distribution by Site 1-9", fig.show = 'hold'}
 ggplot(x, aes(x = Age)) +
   geom_histogram(bins = 20) +
   facet_wrap(~ siteID) +
   labs(title = "Age Distribution by Site", x="Age", y="Count") +
   theme_minimal()
+```
+
+```{r label = "eda6", echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Gender Distribution by each Site", fig.show = 'hold'}
 
 x |>
   group_by(siteID, Gender) |>
@@ -217,17 +220,9 @@ x |>
   geom_bar(stat="identity", position="fill") +
   labs(title="Gender Distribution by Site", y="Proportion") +
   theme_minimal()
-
-x |>
-  group_by(siteID, Race2) |>
-  summarise(n = n()) |>
-  ggplot(aes(x = siteID, y = n, fill = Race2)) +
-  geom_bar(stat="identity", position="fill") +
-  labs(title="Gender Distribution by Site", y="Proportion") +
-  theme_minimal()
 ```
 
-```{r}
+```{r label = "eda7", echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Patient discharge outcomes by treatment", fig.show = 'hold'}
 p1 <- ggplot(x, aes(x = hadTPA, fill = homeOrRehab)) +
   geom_bar(position = "fill") +
   labs(title = "By TPA Treatment", y = "Proportion") +
@@ -287,10 +282,17 @@ p6 <- ggplot(x, aes(x = Race2, fill = homeOrRehab)) +
 ```{r}
 x |>
   group_by(Time2, siteID) |>
-  summarise(GoodOutcome = mean(homeOrRehab, na.rm = TRUE), .groups = "drop") |>
-  ggplot(aes(x = Time2, y = GoodOutcome, group = siteID)) +  
+  summarise(
+    n = sum(!is.na(homeOrRehab)),
+    GoodOutcome = mean(homeOrRehab, na.rm = TRUE),
+    SE = sqrt(GoodOutcome * (1 - GoodOutcome) / n),
+    .groups = "drop"
+  ) |>
+  ggplot(aes(x = Time2, y = GoodOutcome, group = siteID)) +
   geom_line() +
   geom_point() +
+  geom_errorbar(aes(ymin = GoodOutcome - SE, ymax = GoodOutcome + SE),
+                width = 0.1, alpha = 0.6) +
   facet_wrap(~siteID) +
   labs(
     title = "Proportion of Good Outcomes by Site Over Time",
@@ -299,6 +301,7 @@ x |>
   ) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 ```
 
 # Frequentist model
