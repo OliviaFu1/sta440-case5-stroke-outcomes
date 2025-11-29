@@ -181,3 +181,247 @@ jags.out <- jags(
   progress.bar = "none"
 )
 ```
+
+## NEW JAGSUI MODEL
+
+```{r}
+
+library(jagsUI)
+library(dplyr)
+
+load("strokeStudy.RData")  
+
+dat <- x
+
+## Outcome: 1 = home / rehab, 0 = other
+Y <- as.numeric(dat$homeOrRehab == TRUE)  # or == 1 depending on coding
+
+keep <- !is.na(Y)
+dat <- dat[keep, ]
+Y   <- Y[keep]
+
+N <- nrow(dat)
+
+## Site ID as consecutive integers 1,...,nSite
+siteID <- as.numeric(factor(dat$siteID))
+nSite  <- length(unique(siteID))
+
+## Study quarter as numeric 0,1,2,3   (adjust if you want dummy coding)
+Time2 <- as.numeric(dat$Time2) - 1
+
+## Binary covariates as 0/1 numeric, preserving NAs for joint modeling
+
+## 1 = arrived by EMS, 0 = car
+EMS <- ifelse(is.na(dat$EMSvsCar), NA,
+              ifelse(dat$EMSvsCar == 1, 1, 0))  ## ADJUST if coded differently
+
+## 1 = EMS gave pre-arrival notification
+Notify <- ifelse(is.na(dat$PreHospNotify), NA,
+                 ifelse(dat$PreHospNotify == 1, 1, 0))  ## ADJUST if needed
+
+## Treatment & complication indicators (no missing by design)
+hadTPA    <- ifelse(dat$hadTPA,          1, 0)
+hadThromb <- ifelse(dat$hadThrombectomy, 1, 0)
+tpaComp   <- ifelse(dat$tpaComplic,      1, 0)
+thrComp   <- ifelse(dat$thrComplic,      1, 0)
+
+## Example gender / race coding - ***CHECK YOUR LEVEL NAMES***
+## Here: 1 = male, 0 = female
+Gender <- ifelse(dat$Gender == "Male", 1,
+                 ifelse(dat$Gender == "Female", 0, NA))  ## ADJUST
+
+## Here: 1 = non-White, 0 = White
+Race2 <- ifelse(dat$Race2 == "White", 0, 1)  ## ADJUST to how you want race coded
+
+Age <- dat$Age  
+
+data_jags <- list(
+  N      = N,
+  nSite  = nSite,
+  Y      = Y,
+  siteID = siteID,
+  Time2  = Time2,
+  Age    = Age,
+  EMS    = EMS,
+  Notify = Notify,
+  hadTPA    = hadTPA,
+  hadThromb = hadThromb,
+  tpaComp   = tpaComp,
+  thrComp   = thrComp,
+  Gender = Gender,
+  Race2  = Race2
+)
+
+
+stroke_model <- "
+model {
+
+  ############################################################
+  # 1. Outcome model: P(Y | Age, EMS, Notify, Z)
+  ############################################################
+
+  for (i in 1:N) {
+
+    Y[i] ~ dbern(p[i])
+
+    logit(p[i]) <- alpha +
+                   b_out[siteID[i]] +
+                   beta_Age    * Age10[i] +
+                   beta_EMS    * EMS[i] +
+                   beta_Notify * Notify[i] +
+                   beta_TPA    * hadTPA[i] +
+                   beta_Thromb * hadThromb[i] +
+                   beta_TPAComp* tpaComp[i] +
+                   beta_ThrComp* thrComp[i] +
+                   beta_Time   * Time2[i] +
+                   beta_Gender * Gender[i] +
+                   beta_Race   * Race2[i]
+  }
+
+  ############################################################
+  # 2. Missing-data submodels under MAR
+  #    Factorization:
+  #    p(Age,EMS,Notify | Z) =
+  #       p(Age | EMS,Notify,Z) *
+  #       p(Notify | EMS,Z) *
+  #       p(EMS | Z)
+  #
+  #    All three submodels condition on site, and
+  #    Notify depends on EMS, per your notes.
+  ############################################################
+
+  # ---------- 2a. Transport model: EMS | Time2, site ----------
+  for (i in 1:N) {
+    EMS[i] ~ dbern(pi.EMS[i])
+    logit(pi.EMS[i]) <- gamma0 +
+                        b_EMS[siteID[i]] +
+                        gamma_Time * Time2[i]
+  }
+
+  # ---------- 2b. Notify model: Notify | EMS, Time2, site -----
+  for (i in 1:N) {
+    Notify[i] ~ dbern(pi.Not[i])
+    logit(pi.Not[i]) <- delta0 +
+                        b_Not[siteID[i]] +
+                        delta_Trans * EMS[i] +
+                        delta_Time  * Time2[i]
+  }
+
+  # ---------- 2c. Age model: Age | EMS, Notify, Time2, site ---
+  for (i in 1:N) {
+    Age[i] ~ dnorm(muAge[i], tau_Age)
+    muAge[i] <- eta0 +
+                b_Age[siteID[i]] +
+                eta_Trans * EMS[i] +
+                eta_Not   * Notify[i] +
+                eta_Time  * Time2[i]
+
+    # Scaled age (in decades) for outcome model
+    Age10[i] <- Age[i] / 10
+  }
+
+  ############################################################
+  # 3. Priors
+  ############################################################
+
+  # --- Outcome model fixed effects
+  alpha        ~ dnorm(0, 0.001)
+  beta_Age     ~ dnorm(0, 0.001)
+  beta_EMS     ~ dnorm(0, 0.001)
+  beta_Notify  ~ dnorm(0, 0.001)
+  beta_TPA     ~ dnorm(0, 0.001)
+  beta_Thromb  ~ dnorm(0, 0.001)
+  beta_TPAComp ~ dnorm(0, 0.001)
+  beta_ThrComp ~ dnorm(0, 0.001)
+  beta_Time    ~ dnorm(0, 0.001)
+  beta_Gender  ~ dnorm(0, 0.001)
+  beta_Race    ~ dnorm(0, 0.001)
+
+  # --- Outcome site random effects
+  sigma_site_out ~ dunif(0, 5)
+  tau_site_out   <- pow(sigma_site_out, -2)
+
+  for (j in 1:nSite) {
+    b_out[j] ~ dnorm(0, tau_site_out)
+  }
+
+  # --- EMS model priors
+  gamma0      ~ dnorm(0, 0.001)
+  gamma_Time  ~ dnorm(0, 0.001)
+
+  sigma_site_EMS ~ dunif(0, 5)
+  tau_site_EMS   <- pow(sigma_site_EMS, -2)
+
+  for (j in 1:nSite) {
+    b_EMS[j] ~ dnorm(0, tau_site_EMS)
+  }
+
+  # --- Notify model priors
+  delta0      ~ dnorm(0, 0.001)
+  delta_Trans ~ dnorm(0, 0.001)
+  delta_Time  ~ dnorm(0, 0.001)
+
+  sigma_site_Not ~ dunif(0, 5)
+  tau_site_Not   <- pow(sigma_site_Not, -2)
+
+  for (j in 1:nSite) {
+    b_Not[j] ~ dnorm(0, tau_site_Not)
+  }
+
+  # --- Age model priors
+  eta0       ~ dnorm(0, 0.001)
+  eta_Trans  ~ dnorm(0, 0.001)
+  eta_Not    ~ dnorm(0, 0.001)
+  eta_Time   ~ dnorm(0, 0.001)
+
+  sigma_site_Age ~ dunif(0, 20)
+  tau_site_Age   <- pow(sigma_site_Age, -2)
+
+  for (j in 1:nSite) {
+    b_Age[j] ~ dnorm(0, tau_site_Age)
+  }
+
+  tau_Age  ~ dgamma(0.001, 0.001)
+  sigma_Age <- pow(tau_Age, -0.5)
+
+}
+"
+
+inits_fun <- function() {
+  list(
+    alpha = 0
+  )
+}
+
+params <- c(
+  # main effects of interest
+  "alpha", "beta_Age", "beta_EMS", "beta_Notify",
+  "beta_TPA", "beta_Thromb", "beta_TPAComp", "beta_ThrComp",
+  "beta_Time", "beta_Gender", "beta_Race",
+  # variance components
+  "sigma_site_out", "sigma_site_EMS", "sigma_site_Not",
+  "sigma_site_Age", "sigma_Age"
+  # you can add "b_out", "b_EMS", "b_Not", "b_Age"
+  # if you want site-specific effects
+)
+
+
+set.seed(123)
+
+fit_stroke <- jags(
+  data    = data_jags,
+  inits   = inits_fun,
+  parameters.to.save = params,
+  model.file = textConnection(stroke_model),
+  n.chains = 3,
+  n.adapt  = 2000,
+  n.iter   = 12000,
+  n.burnin = 6000,
+  n.thin   = 6,
+  parallel = FALSE  
+)
+
+print(fit_stroke, digits = 3)
+plot(fit_stroke) 
+
+```
