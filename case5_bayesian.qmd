@@ -127,6 +127,15 @@ summary(fit_M_race)
 # Bayesian approach
 
 ```{r}
+age_mean <- mean(x$Age, na.rm = TRUE)
+
+x <- x |>
+  mutate(logAge = log(Age),
+         sqrAge = (Age)^2 / 1000,
+         Age_c10 = (Age - age_mean) / 10)
+```
+
+```{r}
 # Build the data list for JAGS
 bdat <- list(
   N = nrow(x),
@@ -160,10 +169,10 @@ fun.params <- c(
   "gamma_thrComp","gamma_tpaComp",
 
   # Notify model
-  "delta0","delta_site","delta_race","delta_time",
+  "delta0","delta_site","delta_time",
 
   # Age model
-  "eta0","eta_site","eta_race","eta_time",
+  "eta0","eta_site",
   "sigma_A"
 )
 ```
