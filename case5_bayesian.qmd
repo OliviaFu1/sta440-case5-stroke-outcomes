@@ -66,6 +66,11 @@ x$PreHospNotify <- ifelse(x$PreHospNotify == "Yes", 1,
 x$EMSvsCar <- as.integer(x$EMSvsCar)
 ```
 
+```{r}
+# Set EMSvsCar = 1 if PreHospNotify = 1
+x$EMSvsCar[is.na(x$EMSvsCar) & x$PreHospNotify == 1] <- 1
+```
+
 # Missingness pattern
 
 ```{r}
@@ -166,7 +171,7 @@ fun.params <- c(
 ```{r}
 set.seed(440)
 fun.model.file <- "model_stroke.R" 
-mcmc.pars <- list(iter = 50000, burn = 10000, nchain=4, thin=1)
+mcmc.pars <- list(iter = 10000, burn = 2000, nchain=4, thin=1)
 
 jags.out <- jags(
   data = bdat,

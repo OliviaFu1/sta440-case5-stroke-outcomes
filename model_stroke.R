@@ -21,38 +21,18 @@ model {
   # 2. Notify must depend on Transport
   # 3. State conditional independence assumptions & justifications
   
-  # Age | Notify, Transport, Race, Site, Z
+  # Race | Site, Z
   for (i in 1:N){
-    Age[i] ~ dnorm(mu_A[i], tau_A)
-    mu_A[i] <- eta0
-              + eta_site[Site[i]]
-              + eta_race[Race[i]]
-              + eta_time[Time[i]]
+    Race[i] ~ dcat(pi_race[Site[i],1:3])
+  }
+  for (s in 1:9){
+    pi_race[s,1:3] ~ ddirch(alpha[1:3])
   }
   
-  eta0 ~ dnorm(0, 0.001)
-  for (s in 1:9){ eta_site[s] ~ dnorm(0, 0.001) }
-  for (r in 1:3){ eta_race[r] ~ dnorm(0, 0.001) }
-  for (q in 1:8){ eta_time[q] ~ dnorm(0, 0.001) }
+  alpha[1] <- 0.5  # Jeffreys prior
+  alpha[2] <- 0.5
+  alpha[3] <- 0.5
   
-  tau_A ~ dgamma(0.001, 0.001)
-  sigma_A <- 1 / sqrt(tau_A)
-  
-  # Notify | Transport, Race, Site, Z
-  # Transport[i] = 1 if EMS, 0 if car
-  for (i in 1:N){
-    Notify[i] ~ dbern(pi_N[i])
-    pi_N[i] <- pi_EMS[i] * Transport[i]
-    logit(pi_EMS[i]) <- delta0
-                        + delta_site[Site[i]]
-                        + delta_race[Race[i]]
-                        + delta_time[Time[i]]
-  }
-  delta0 ~ dnorm(0, 0.001)
-  for (s in 1:9){ delta_site[s] ~ dnorm(0, 0.001) }
-  for (r in 1:3){ delta_race[r] ~ dnorm(0, 0.001) }
-  for (q in 1:8){ delta_time[q] ~ dnorm(0, 0.001) }
-
   # Transport | Race, Site, Z
   for (i in 1:N){
     Transport[i] ~ dbern(pi_T[i])
@@ -70,18 +50,37 @@ model {
   gamma_thrComp ~ dnorm(0, 0.001)
   gamma_tpaComp ~ dnorm(0, 0.001)
   
-  # Race | Site, Z
+  # Notify | Transport, Race, Site, Z
+  # Transport[i] = 1 if EMS, 0 if car
   for (i in 1:N){
-    Race[i] ~ dcat(pi_race[Site[i],1:3])
+    Notify[i] ~ dbern(pi_N[i])
+    pi_N[i] <- pi_EMS[i] * Transport[i]
+    logit(pi_EMS[i]) <- delta0
+                        + delta_site[Site[i]]
+                        + delta_race[Race[i]]
+                        + delta_time[Time[i]]
   }
-  for (s in 1:9){
-    pi_race[s,1:3] ~ ddirch(alpha[1:3])
+  delta0 ~ dnorm(0, 0.001)
+  for (s in 1:9){ delta_site[s] ~ dnorm(0, 0.001) }
+  for (r in 1:3){ delta_race[r] ~ dnorm(0, 0.001) }
+  for (q in 1:8){ delta_time[q] ~ dnorm(0, 0.001) }
+  
+  # Age | Notify, Transport, Race, Site, Z
+  for (i in 1:N){
+    Age[i] ~ dnorm(mu_A[i], tau_A)
+    mu_A[i] <- eta0
+              + eta_site[Site[i]]
+              + eta_race[Race[i]]
+              + eta_time[Time[i]]
   }
   
-  alpha[1] <- 0.5  # Jeffreys prior
-  alpha[2] <- 0.5
-  alpha[3] <- 0.5
+  eta0 ~ dnorm(0, 0.001)
+  for (s in 1:9){ eta_site[s] ~ dnorm(0, 0.001) }
+  for (r in 1:3){ eta_race[r] ~ dnorm(0, 0.001) }
+  for (q in 1:8){ eta_time[q] ~ dnorm(0, 0.001) }
   
+  tau_A ~ dgamma(0.001, 0.001)
+  sigma_A <- 1 / sqrt(tau_A)
   
   # Priors for outcome model
   beta0 ~ dnorm(0, 0.001)
