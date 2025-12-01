@@ -187,7 +187,33 @@ jags.out <- jags(
 )
 ```
 
-## NEW JAGSUI MODEL
+## Evaluation
+
+```{r}
+sim <- as.mcmc(jags.out)
+ess <- effectiveSize(sim)
+ess
+```
+
+```{r}
+traceplot(sim, varname = fun.params)
+```
+
+```{r}
+gelman.diag(sim, transform=TRUE)
+```
+
+```{r}
+rl <- raftery.diag(sim)
+rl[[1]]
+```
+
+```{r}
+post_summary <- summary(sim)
+post_summary[[1]]
+```
+
+# NEW JAGSUI MODEL
 
 ```{r}
 
