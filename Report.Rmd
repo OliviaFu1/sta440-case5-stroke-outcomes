@@ -47,7 +47,7 @@ Parameter estimates aligned with clinical expectations. Older age significantly 
 
 The program's time period effect was modest. The middle period did not differ significantly from baseline, while the end period showed a positive but borderline significant increase in good outcomes (β = 0.285, p = 0.099). This suggests a possible improvement in outcomes as the program reached full implementation, though the evidence is not strong at the frequentist 5% significance level.
 
-# **Bayesian Model: Rationale, Implementation, and Evaluation**
+# **Bayesian Model: Rationale, Implementation, and Evaluation** 
 
 # Model results
 
