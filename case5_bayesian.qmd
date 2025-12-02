@@ -377,3 +377,62 @@ ggplot(df_long, aes(x = Posterior)) +
   ) +
   scale_x_continuous(n.breaks = 4)
 ```
+
+```{r}
+vars <- varnames(sim)
+sim_mat <- do.call(rbind, sim)
+
+beta0     <- sim_mat[, "beta0"]
+beta_site <- sim_mat[, grep("^beta_site\\[", vars)]
+beta_time <- sim_mat[, grep("^beta_time\\[", vars)]
+beta_gender <- sim_mat[, grep("^beta_gender\\[", vars)]
+beta_race   <- sim_mat[, grep("^beta_race\\[", vars)]
+beta_age      <- sim_mat[, "beta_age"]
+beta_trans    <- sim_mat[, "beta_transport"]
+beta_notify   <- sim_mat[, "beta_notify"]
+beta_TPA      <- sim_mat[, "beta_TPA"]
+beta_Thromb   <- sim_mat[, "beta_Thromb"]
+beta_tpaComp  <- sim_mat[, "beta_tpaComp"]
+beta_thrComp  <- sim_mat[, "beta_thrComp"]
+
+Site            <- x$siteID
+Time            <- x$Time2
+Age             <- x$Age
+Gender          <- x$Gender
+Race            <- x$Race2
+Transport       <- x$EMSvsCar           # 1 = EMS, 0 = Car
+Notify          <- x$PreHospNotify
+hadTPA          <- x$hadTPA
+hadThrombectomy <- x$hadThrombectomy
+tpaComplic      <- x$tpaComp
+thrComplic      <- x$thrComp
+Y               <- x$homeOrRehab        # 1 = home, 0 = rehab
+
+M <- nrow(sim_mat)
+N <- length(Y)
+
+lp <- matrix(0, nrow = M, ncol = N)
+
+lp <- lp +
+  beta0 + 
+  beta_site[, Site] +
+  beta_time[, Time] +
+  beta_age * matrix(Age, M, N, TRUE) +
+  beta_gender[, Gender] +
+  beta_race[, Race] +
+  beta_trans * matrix(Transport, M, N, TRUE) +
+  beta_notify * matrix(Notify, M, N, TRUE) +
+  beta_TPA * matrix(hadTPA, M, N, TRUE) +
+  beta_Thromb * matrix(hadThrombectomy, M, N, TRUE) +
+  beta_tpaComp * matrix(tpaComplic, M, N, TRUE) +
+  beta_thrComp * matrix(thrComplic, M, N, TRUE)
+
+invlogit <- function(x) 1 / (1 + exp(-x))
+p_samples <- invlogit(lp)
+
+p_mean <- colMeans(p_samples)
+library(pROC)
+roc_obj <- roc(Y, p_mean)
+auc(roc_obj)
+plot(roc_obj)
+```
