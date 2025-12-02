@@ -51,9 +51,7 @@ The program's time period effect was modest. The middle period did not differ si
 
 # Model results
 
-# Shortcomings and Future Work
-
-# Conclusion
+# Limitations and Conclusion
 
 \newpage
 
