@@ -161,7 +161,9 @@ mice_imp["Race2"]<-"2l.pmm"
 
 binary_vec<-c("homeOrRehab","hadTPA","tpaComplic","thrComplic","hadThrombectomy","EMSvsCar","PreHospNotify")
 
-mice_imp[binary_vec]<-"2l.bin"
+x[binary_vec]<-lapply(x[binary_vec],function(x) as.factor(as.integer(x)))
+
+mice_imp[binary_vec]<-"logreg"
 
 
 
