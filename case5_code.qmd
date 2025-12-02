@@ -148,37 +148,49 @@ x |>
 library(mice)
 library(miceadds)
 
+# Ensure siteID is an integer factor
+x$siteID <- as.integer(as.factor(x$siteID))
 
-x$siteID<-as.integer(as.factor(x$siteID))
+# Ensure binary variables are factors
+binary_vec <- c("EMSvsCar","PreHospNotify","homeOrRehab")
+x[binary_vec] <- lapply(x[binary_vec], function(z) factor(z))
 
+# Ensure Race is factor for polyreg
+x$Race2 <- factor(x$Race2)
 
-mice_imp<-make.method(x)
-mice_imp["siteID"]<-""
-mice_imp["Age"]<-"2l.pan"
-mice_imp["Time2"]<-"2l.pmm"
-mice_imp["Gender"]<-"2l.pmm"
-mice_imp["Race2"]<-"2l.pmm"
+# Initialize method vector
+mice_imp <- make.method(x)
 
-binary_vec<-c("homeOrRehab","hadTPA","tpaComplic","thrComplic","hadThrombectomy","EMSvsCar","PreHospNotify")
+# Do not impute siteID
+mice_imp["siteID"] <- ""
 
-x[binary_vec]<-lapply(x[binary_vec],function(x) as.factor(as.integer(x)))
+# Methods for variables WITH missing data
+mice_imp["Age"]           <- "2l.pan"     # hierarchical continuous
+mice_imp["Race2"]         <- "polyreg"    # multinomial categorical
+mice_imp["EMSvsCar"]      <- "logreg"     # binary
+mice_imp["PreHospNotify"] <- "logreg"     # binary
+mice_imp["homeOrRehab"]   <- "logreg"     # binary
 
-mice_imp[binary_vec]<-"logreg"
+# Predictor matrix
+pred_matrix <- make.predictorMatrix(x)
 
+# Only Age should depend on site (random intercept)
+pred_matrix["Age", "siteID"] <- -2
+pred_matrix[c("Race2","EMSvsCar","PreHospNotify","homeOrRehab"), "siteID"] <- 1
+pred_matrix["siteID", ] <- 0
 
+imp <- mice(
+  x,
+  m = 20,
+  maxit = 15,
+  method = mice_imp,
+  predictorMatrix = pred_matrix,
+  cluster = x$siteID,
+  seed = 2025
+)
 
-pred_matrix<-make.predictorMatrix(x)
-
-pred_matrix[,"siteID"]<- -2
-pred_matrix["siteID",]<-0
-
-imp <- mice(x, m = 20, maxit=15, method=mice_imp,predictorMatrix = pred_matrix,cluster=x$siteID,seed=2025)
 plot(imp)
-full_x <- complete(imp, action="long")
-
-
-
-
+full_x <- complete(imp, action = "long")
 ```
 
 ## Covariates & Associations
