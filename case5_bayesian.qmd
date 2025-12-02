@@ -299,9 +299,11 @@ post_summary[[1]]
 
 ```{r}
 
-credible_ints<-jags.out$BUGSoutput$summary[,c("2.5%","97.5%")]
+credible_ints<-jags.out$BUGSoutput$summary[,c("2.5%","97.5%")]|>as.data.frame()
 
-credible_ints|>kable()
+credible_ints_filtered<-credible_ints|>filter(`2.5%`<=0&`97.5%`>=0)
+
+credible_ints_filtered|>kable()
 
 ```
 
