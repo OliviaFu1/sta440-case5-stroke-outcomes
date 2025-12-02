@@ -83,108 +83,38 @@ library(patchwork)
 
 ## Missing values
 
-```{r missing, cache=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
-
+```{r}
 # Missing -> NA for Race2
-x <- x %>%
+x <- x |>
   mutate(
-    Race2 = na_if(Race2, "Missing"),
-    EMSvsCar = case_when(
-      EMSvsCar == 1 ~ "EMS",
-      EMSvsCar == 0 ~ "Car",
-      TRUE ~ NA_character_
-    ),
-    EMSvsCar = factor(EMSvsCar)
+    Race2 = na_if(Race2, "Missing")
   )
-```
-
-```{r label = "eda1", echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Table missing values", fig.show = 'hold'}
-missing_count <- x |>
-  dplyr::select(-Time2, -siteID) |>
-  summarise(across(
-    everything(),
-    ~ sum(is.na(.))
-  )) |>
-  pivot_longer(everything(),
-               names_to = "Variable",
-               values_to = "n_missing") %>%
-  arrange(desc(n_missing))
-
-kable(missing_count)
-```
-
-```{r label = "eda2", echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Missing Value Counts Over Time by Quarter", fig.show = 'hold'}
-vars_to_check <- c("Age", "PreHospNotify", "EMSvsCar", "homeOrRehab", "Race2")
-
-missing_by_time <- x |>
-  group_by(Time2) |>
-  summarise(across(all_of(vars_to_check), ~sum(is.na(.)))) |>
-  pivot_longer(-Time2, names_to = "Variable", values_to = "n_missing")
-
-ggplot(missing_by_time, aes(x = Time2, y = n_missing, group = Variable, color = Variable)) +
-  geom_line(size = 1) +
-  geom_point(size = 3) +
-  labs(title = "Missing Value Counts by Quarter",
-       x = "Time (Quarter)",
-       y = "Number of Missing Values",
-       color = "Variable") +
-  theme_minimal(base_size = 14) +
-  scale_color_brewer(palette = "Set2")
 ```
 
 ## Missing Data Analysis
 
 ```{r}
-library(naniar)
-vis_miss(x)
-
-gg_miss_var(x)
-gg_miss_fct(x,fct=homeOrRehab)
-
-gg_miss_fct(x |> dplyr::select(where(~ any(is.na(.)))),fct=homeOrRehab)
-
-x_subset<-x
-x_subset$missingvals<-is.na(x)
-#summary(glm(missingvals~homeOrRehab,data=x_subset))
-
-#checking for mcar
-complete_subset<- x[complete.cases(x),]
-incomplete_subset<-x[!complete.cases(x),]
-
-summary(complete_subset)
-summary(incomplete_subset)
-
-ggplot(x,aes(x=homeOrRehab,fill=complete.cases(x)))+geom_density(alpha=0.5) #not mcar, must be mnar or mar
-```
-
-```{r}
-library(naniar)
-library(ggplot2)
-x %>%
-  dplyr::select(where(~ any(is.na(.)))) %>%  
+x |>
+  dplyr::select(where(~ any(is.na(.)))) |>
   vis_miss()
-
-gg_miss_upset(x)
 ```
 
 ```{r label = "eda3", echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Missing Heatmap by Quarter by Variable", fig.show = 'hold'}
-library(tidyr)
-
 vars_with_missing <- c("Age", "Race2", "EMSvsCar", "PreHospNotify", "homeOrRehab")
 
 x |>
   mutate(across(all_of(vars_with_missing),
                 ~ as.integer(is.na(.)),
-                .names = "{.col}_miss")) %>%
+                .names = "{.col}_miss")) |>
   
   pivot_longer(
     cols = ends_with("_miss"),
     names_to = "Variable",
     values_to = "Missing"
-  ) %>%
+  ) |>
   
-  group_by(Time2, Variable) %>%
-  summarise(prop_missing = mean(Missing), .groups = "drop") %>%
+  group_by(Time2, Variable) |>
+  summarise(prop_missing = mean(Missing), .groups = "drop") |>
   
   ggplot(aes(x = Time2, y = Variable, fill = prop_missing)) +
   geom_tile() +
