@@ -77,6 +77,7 @@ library(dplyr)
 library(tidyr)
 library(knitr)
 library(patchwork)
+library(lme4)
 ```
 
 # EDA
@@ -292,33 +293,107 @@ x |>
 
 ```{r}
 # MICE
+library(mice)
+library(miceadds)
+
+x$siteID <- as.integer(as.factor(x$siteID))
+binary_vec <- c("EMSvsCar","PreHospNotify","homeOrRehab")
+x[binary_vec] <- lapply(x[binary_vec], function(z) factor(z))
+x$Race2 <- factor(x$Race2)
+
+# Initialize method vector
+mice_imp <- make.method(x)
+mice_imp["Age"]           <- "2l.pan"     # hierarchical continuous
+mice_imp["Race2"]         <- "polyreg"    # multinomial categorical
+mice_imp["EMSvsCar"]      <- "logreg"     # binary
+mice_imp["PreHospNotify"] <- "logreg"     # binary
+mice_imp["homeOrRehab"]   <- "logreg"     # binary
+
+# Predictor matrix
+pred_matrix <- make.predictorMatrix(x)
+pred_matrix["Age", "siteID"] <- -2
 ```
 
 ```{r}
-full_x <- full_x |>
-  mutate(
-    period = case_when(
+imp <- mice(
+  x,
+  m = 20,
+  method = mice_imp,
+  predictorMatrix = pred_matrix,
+  cluster = x$siteID,
+  seed = 2025
+)
+
+full_x <- complete(imp, action = "long")
+```
+
+```{r}
+ctrl <- glmerControl(optimizer = "bobyqa")
+
+models <- with(
+  imp,
+  {
+    period <- case_when(
       Time2 %in% c("Y1Q1", "Y1Q2") ~ "baseline",
       Time2 %in% c("Y1Q3", "Y1Q4", "Y2Q1", "Y2Q2") ~ "middle",
       Time2 %in% c("Y2Q3", "Y2Q4") ~ "end"
-    ),
-    period = factor(period, levels = c("baseline", "middle", "end"))
-  )
+    )
+    period <- factor(period, levels = c("baseline","middle","end"))
+
+    Age_c <- Age - mean(Age, na.rm = TRUE)
+
+    glmer(
+      homeOrRehab ~ EMSvsCar + PreHospNotify + hadThrombectomy +
+        hadTPA + tpaComplic + thrComplic + Age_c + period + Gender + Race2 +
+        (1 | siteID),
+      family = binomial,
+      control = ctrl
+    )
+  }
+)
 ```
 
 ```{r}
-full_x <- full_x |> 
-  mutate(Age_c = Age - mean(Age)) 
+est_list  <- lapply(models$analyses, fixef)      # length m, each a named numeric vector
+vcov_list <- lapply(models$analyses, vcov)
+m <- length(est_list)
+coef_names <- names(est_list[[1]])
 
-ctrl <- glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e6) ) 
+# p x m matrix of estimates
+Qmat <- do.call(cbind, lapply(est_list, function(b) b[coef_names]))
 
-model_mixed <- glmer( 
-  homeOrRehab ~ EMSvsCar + PreHospNotify + hadThrombectomy + 
-    hadTPA + tpaComplic + thrComplic + Age_c + period + Gender + Race2 + 
-    (1 | siteID), 
-  data = full_x, family = binomial, control = ctrl ) 
+# p x m matrix of standard errors
+SEmat <- sapply(models$analyses, function(mdl) sqrt(diag(vcov(mdl)[coef_names, coef_names])))
+SEmat <- as.matrix(SEmat)
+rownames(SEmat) <- coef_names
 
-summary(model_mixed)
+# 1. Pooled estimate
+Q_bar <- rowMeans(Qmat)
+
+# 2. Within-imputation variance (mean of SE^2)
+U_bar <- rowMeans(SEmat^2)
+
+# 3. Between-imputation variance
+B <- apply(Qmat, 1, var)
+
+# 4. Total variance
+T_var <- U_bar + (1 + 1/m) * B
+
+# 5. Pooled standard error
+se_pooled <- sqrt(T_var)
+
+z_val <- Q_bar / se_pooled
+p_val <- 2 * (1 - pnorm(abs(z_val)))
+
+pooled_results <- data.frame(
+  term      = coef_names,
+  estimate  = Q_bar,
+  std.error = se_pooled,
+  z         = z_val,
+  p.value   = p_val
+)
+
+kable(pooled_results, digits = 3, row.names = FALSE)
 ```
 
 ```{r}
