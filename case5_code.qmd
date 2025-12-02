@@ -146,10 +146,37 @@ x |>
 
 ```{r}
 library(mice)
+library(miceadds)
 
-imp <- mice(x, m = 5, method = "pmm", seed = 2025)
+
+x$siteID<-as.integer(as.factor(x$siteID))
+
+
+mice_imp<-make.method(x)
+mice_imp["siteID"]<-""
+mice_imp["Age"]<-"2l.pan"
+mice_imp["Time2"]<-"2l.pmm"
+mice_imp["Gender"]<-"2l.pmm"
+mice_imp["Race2"]<-"2l.pmm"
+
+binary_vec<-c("homeOrRehab","hadTPA","tpaComplic","thrComplic","hadThrombectomy","EMSvsCar","PreHospNotify")
+
+mice_imp[binary_vec]<-"2l.bin"
+
+
+
+pred_matrix<-make.predictorMatrix(x)
+
+pred_matrix[,"siteID"]<- -2
+pred_matrix["siteID",]<-0
+
+imp <- mice(x, m = 20, maxit=15, method=mice_imp,predictorMatrix = pred_matrix,cluster=x$siteID,seed=2025)
 plot(imp)
-full_x <- complete(imp, 1)
+full_x <- complete(imp, action="long")
+
+
+
+
 ```
 
 ## Covariates & Associations
