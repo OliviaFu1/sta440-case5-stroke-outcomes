@@ -95,8 +95,15 @@ x <- x |>
 
 ```{r}
 x |>
-  dplyr::select(where(~ any(is.na(.)))) |>
+  select(where(~ any(is.na(.)))) |>
   vis_miss()
+```
+
+```{r}
+x |>
+  select(-Time2) |>
+  gg_miss_var(facet = siteID) +
+  labs(title = "Missing Data by Variable and Site")
 ```
 
 ```{r label = "eda3", echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Missing Heatmap by Quarter by Variable", fig.show = 'hold'}
@@ -126,16 +133,6 @@ x |>
   ) +
   theme_minimal() +
   scale_y_discrete(labels = ~ gsub("_miss", "", .x))
-```
-
-## Data cleaning after knowing its not MCAR
-
-```{r label = "eda4", echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Imputation Plots  for each variable", fig.show = 'hold'}
-library(mice)
-
-imp <- mice(x, m = 5, method = "pmm", seed = 2025)
-plot(imp)
-full_x <- complete(imp, 1)
 ```
 
 ## Covariates & Associations
@@ -242,6 +239,10 @@ x |>
 ```
 
 # Frequentist model
+
+```{r}
+# MICE
+```
 
 ```{r}
 full_x <- full_x |>
