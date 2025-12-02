@@ -31,9 +31,9 @@ We began by examining patterns of missingness across the dataset, since five key
 
 Beyond missingness, we explored how demographic and clinical characteristics varied across sites and how they related to discharge disposition. Age distributions differed meaningfully by center, and racial composition varied, with some sites treating predominantly Caucasian patients while others had higher proportions of African American or Other race groups. Associations with the outcome followed clinically plausible patterns: patients experiencing TPA or thrombectomy complications had substantially worse outcomes, EMS transport (a proxy for stroke severity) was associated with a lower probability of home/rehab discharge, and TPA treatment corresponded to improved outcomes. Older age, female gender, and African American/Other race groups showed lower rates of favorable discharge. When outcomes were plotted over time, several sites displayed modest improvement from baseline to the end of the study period, though the magnitude varied widely by hospital. These observations underscored the need for statistical modeling that accounts for site heterogeneity, temporal trends, and the non-random missingness structure identified in the EDA.
 
-# Model rationale
+# Model Rationale, Evaluation, and Results
 
-### Frequentist Model: Implementation, Evaluation, and Results
+## Frequentist Model
 
 Given our goals, identifying factors associated with good discharge outcomes and assessing whether outcomes improved over time, we used a regression framework that adjusts for demographic, clinical, and treatment variables. Because patients were clustered within nine stroke centers and our EDA showed meaningful site-level differences, we first fit a mixed-effects logistic regression with a random intercept for site prior to moving to the Bayesian model. To capture broader temporal trends and reduce quarter-to-quarter noise, we collapsed the study timeline into three periods (baseline, middle, end). Age was centered for numerical stability. After completing multiple imputation, we fit this mixed-effects logistic regression on one completed dataset to obtain initial frequentist estimates.
 
@@ -47,11 +47,15 @@ Parameter estimates aligned with clinical expectations. Older age significantly 
 
 The program's time period effect was modest. The middle period did not differ significantly from baseline, while the end period showed a positive but borderline significant increase in good outcomes (β = 0.285, p = 0.099). This suggests a possible improvement in outcomes as the program reached full implementation, though the evidence is not strong at the frequentist 5% significance level.
 
-# **Bayesian Model: Rationale, Implementation, and Evaluation** 
+## **Bayesian Model**
 
-# Model results
+### **Rationale and Implementation**
 
-# Limitations and Conclusion
+### **Evaluation**
+
+### Results
+
+# Limitations, Future Directions, and Conclusion
 
 \newpage
 
