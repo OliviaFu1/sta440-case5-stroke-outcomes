@@ -172,7 +172,7 @@ fun.params <- c(
   "delta0","delta_site","delta_time",
 
   # Age model
-  "eta0","eta_site",
+  "eta0","eta_site","eta_race","eta_time",
   "sigma_A"
 )
 ```
@@ -180,20 +180,24 @@ fun.params <- c(
 ```{r}
 set.seed(440)
 fun.model.file <- "model_stroke.R" 
-mcmc.pars <- list(iter = 50000, burn = 2000, nchain=4, thin=1)
+mcmc.pars <- list(iter = 10000, burn = 2000, nchain=4, thin=1)
 
-jags.out <- jags(
-  data = bdat,
-  inits = NULL,
-  parameters.to.save = fun.params,
-  model.file = fun.model.file,
-  n.chains = mcmc.pars$nchain,
-  n.iter = mcmc.pars$iter,
-  n.burnin = mcmc.pars$burn,
-  n.thin = mcmc.pars$thin,
-  DIC = FALSE,
-  progress.bar = "text"
-)
+# jags.out <- jags(
+#   data = bdat,
+#   inits = NULL,
+#   parameters.to.save = fun.params,
+#   model.file = fun.model.file,
+#   n.chains = mcmc.pars$nchain,
+#   n.iter = mcmc.pars$iter,
+#   n.burnin = mcmc.pars$burn,
+#   n.thin = mcmc.pars$thin,
+#   DIC = FALSE,
+#   progress.bar = "none"
+# )
+```
+
+```{r}
+load("./bayes_model_run_final.RData")
 ```
 
 ## Evaluation
@@ -201,15 +205,7 @@ jags.out <- jags(
 ```{r}
 sim <- as.mcmc(jags.out)
 ess <- effectiveSize(sim)
-ess_table <- data.frame(
-  Parameter = names(ess),
-  ESS = round(as.numeric(ess), 2)
-)
-
-kable(ess_table, 
-      caption = "Effective Sample Size (ESS) for All Parameters",
-      align = "lc")
-
+ess
 ```
 
 ```{r}
@@ -230,149 +226,6 @@ post_summary <- summary(sim)
 post_summary[[1]]
 ```
 
-```{r}
-library(tidyverse)
-library(coda)
-
-# Convert jagsUI output to a single MCMC matrix
-sim <- as.mcmc(jags.out)               # gives an mcmc.list
-sim_mat <- do.call(rbind, sim)         # <-- FIX: binds chains into one matrix
-df <- as.data.frame(sim_mat)           # now safe to convert to data frame
-
-# OPTIONAL: remove random effects if you want only fixed effects
-# df <- df %>% select(starts_with("beta"), alpha)
-
-# Build posterior summary
-post_summary <- df %>%
-  pivot_longer(cols = everything(),
-               names_to = "parameter",
-               values_to = "value") %>%
-  group_by(parameter) %>%
-  summarise(
-    mean  = mean(value),
-    low95 = quantile(value, 0.025),
-    high95 = quantile(value, 0.975)
-  )
-
-# Forest plot
-ggplot(post_summary,
-       aes(x = reorder(parameter, mean), y = mean)) +
-  geom_point(size = 2) +
-  geom_errorbar(aes(ymin = low95, ymax = high95), width = 0.15) +
-  coord_flip() +
-  theme_minimal() +
-  labs(
-    title = "Posterior Means with 95% Credible Intervals",
-    x = "Parameter",
-    y = "Posterior Mean"
-  )
-
-```
-
-```{r}
-library(coda)
-
-sim <- as.mcmc(jags.out)
-sim_mat <- do.call(rbind, sim)
-sim_mcmc <- mcmc(sim_mat)
-
-params <- c("beta_age", "beta_notify", "beta_transport", 
-            "beta_TPA", "beta_Thromb")
-
-autocorr.plot(sim_mcmc[, params])
-
-```
-
-```{r}
-traceplot(jags.out, 
-          parameters = c("beta_age", "beta_notify", 
-                         "beta_transport", "beta_TPA", "beta_Thromb"))
-```
-
-```{r}
-params <- c("beta_age", "beta_notify", "beta_transport", 
-            "beta_TPA", "beta_Thromb")
-library(tidyverse)
-
-df <- as.data.frame(sim_mat)
-
-# We scale the prior SD to match the posterior scale.
-# This keeps the shape of the prior but makes it visible.
-make_prior_posterior <- function(param) {
-  post <- df[[param]]
-  
-  # prior SD set to 4 × posterior SD (good balance for visualization)
-  prior_sd <- sd(post) * 4
-  
-  prior <- rnorm(length(post), mean = 0, sd = prior_sd)
-  
-  tibble(
-    value = c(prior, post),
-    distribution = rep(c("Prior (scaled)", "Posterior"), each = length(post)),
-    parameter = param
-  )
-}
-
-# Combine all parameters
-plot_df <- bind_rows(lapply(params, make_prior_posterior))
-ggplot(plot_df, aes(x = value, fill = distribution)) +
-  geom_density(alpha = 0.45) +
-  facet_wrap(~parameter, scales = "free") +
-  theme_minimal() +
-  labs(
-    title = "Posterior vs Prior Distributions (Scaled Prior)",
-    x = "Parameter Value",
-    y = "Density"
-  ) +
-  scale_fill_manual(values = c("skyblue", "gray40"))
-
-```
-
-```{r}
-invlogit <- function(x) 1 / (1 + exp(-x))
-time_params <- paste0("beta_time[",1:8,"]")
-
-time_summary <- df %>%
-  select(all_of(time_params)) %>%
-  pivot_longer(everything(), names_to="time", values_to="value") %>%
-  group_by(time) %>%
-  summarise(
-    mean  = mean(value),
-    low95 = quantile(value, 0.025),
-    high95 = quantile(value, 0.975)
-  )
-pred_df <- time_summary %>%
-  mutate(
-    prob_mean = invlogit(mean),
-    prob_low  = invlogit(low95),
-    prob_high = invlogit(high95)
-  )
-ggplot(pred_df, aes(x = time, y = prob_mean)) +
-  geom_point(size = 3) +
-  geom_errorbar(aes(ymin = prob_low, ymax = prob_high), width = 0.1) +
-  theme_minimal() +
-  labs(title = "Predicted Probability of Good Outcome Over Study Period",
-       x = "Time (period)",
-       y = "Posterior Predicted Probability")
-
-
-```
-
-```{r}
-
-df <- as.data.frame(sim_mat)
-
-df %>%
-  pivot_longer(cols = c(beta_age, beta_notify, beta_transport,
-                        beta_TPA, beta_Thromb),
-               names_to = "parameter", values_to = "value") %>%
-  ggplot(aes(value)) +
-  geom_density(fill = "skyblue", alpha = 0.5) +
-  facet_wrap(~parameter, scales = "free") +
-  theme_minimal() +
-  labs(title="Posterior Density Distributions")
-
-```
 # NEW JAGSUI MODEL
 
 ```{r}
