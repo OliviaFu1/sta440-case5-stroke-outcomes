@@ -1,11 +1,16 @@
 ---
-title: "Report"
+title: "STA 440 Case 5: Stroke Outcome"
 author: "Sreya Gnanavel, Srika Gopal, Olivia Fu"
-date: "2025-11-13"
-output: 
-  bookdown::pdf_document2:
-    number_sections: true
-    toc: false
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+format: 
+  pdf:
+    documentclass: article
+    fontsize: 11pt
+geometry: margin=1in
+execute: 
+  warning: false
+  message: false
+  echo: false
 ---
 
 # Background

@@ -25,13 +25,7 @@ library(patchwork)
 # Missing -> NA for Race2
 x <- x %>%
   mutate(
-    Race2 = na_if(Race2, "Missing"),
-    EMSvsCar = case_when(
-      EMSvsCar == 1 ~ "EMS",
-      EMSvsCar == 0 ~ "Car",
-      TRUE ~ NA_character_
-    ),
-    EMSvsCar = factor(EMSvsCar)
+    Race2 = na_if(Race2, "Missing")
   )
 ```
 
@@ -161,9 +155,6 @@ x$Race2 <- factor(x$Race2)
 # Initialize method vector
 mice_imp <- make.method(x)
 
-# Do not impute siteID
-mice_imp["siteID"] <- ""
-
 # Methods for variables WITH missing data
 mice_imp["Age"]           <- "2l.pan"     # hierarchical continuous
 mice_imp["Race2"]         <- "polyreg"    # multinomial categorical
@@ -176,13 +167,12 @@ pred_matrix <- make.predictorMatrix(x)
 
 # Only Age should depend on site (random intercept)
 pred_matrix["Age", "siteID"] <- -2
-pred_matrix[c("Race2","EMSvsCar","PreHospNotify","homeOrRehab"), "siteID"] <- 1
-pred_matrix["siteID", ] <- 0
+```
 
+```{r}
 imp <- mice(
   x,
   m = 20,
-  maxit = 15,
   method = mice_imp,
   predictorMatrix = pred_matrix,
   cluster = x$siteID,
