@@ -66,11 +66,11 @@ The program's time period effect was modest. The middle period did not differ si
 
 # Appendix
 
-```{r echo = FALSE, message = FALSE, warning = FALSE}
+```{r}
 load("./strokeStudy.RData")
 ```
 
-```{r echo = FALSE, message = FALSE, warning = FALSE}
+```{r}
 library(ggplot2)
 library(naniar)
 library(dplyr)
@@ -93,20 +93,20 @@ x <- x |>
 
 ## Missing Data Analysis
 
-```{r}
+```{r label = "eda1", fig.cap = "Missing Data", fig.show = 'hold'}
 x |>
   select(where(~ any(is.na(.)))) |>
   vis_miss()
 ```
 
-```{r}
+```{r label = "eda2", fig.cap = "Missing Data by Site", fig.show = 'hold'}
 x |>
   select(-Time2) |>
   gg_miss_var(facet = siteID) +
   labs(title = "Missing Data by Variable and Site")
 ```
 
-```{r label = "eda3", echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Missing Heatmap by Quarter by Variable", fig.show = 'hold'}
+```{r label = "eda3", fig.cap = "Missing Heatmap by Quarter by Variable", fig.show = 'hold'}
 vars_with_missing <- c("Age", "Race2", "EMSvsCar", "PreHospNotify", "homeOrRehab")
 
 x |>
@@ -137,7 +137,7 @@ x |>
 
 ## Covariates & Associations
 
-```{r label = "eda5", echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Age Distribution by Site 1-9", fig.show = 'hold'}
+```{r label = "eda4", echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Age Distribution by Site 1-9", fig.show = 'hold'}
 ggplot(x, aes(x = Age)) +
   geom_histogram(bins = 20) +
   facet_wrap(~ siteID) +
@@ -145,18 +145,50 @@ ggplot(x, aes(x = Age)) +
   theme_minimal()
 ```
 
-```{r label = "eda6", echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Gender Distribution by each Site", fig.show = 'hold'}
+```{r label = "eda5", echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Distribution by Site", fig.show = 'hold'}
 
-x |>
+p7 <- x |>
   group_by(siteID, Gender) |>
   summarise(n = n()) |>
   ggplot(aes(x = siteID, y = n, fill = Gender)) +
   geom_bar(stat="identity", position="fill") +
   labs(title="Gender Distribution by Site", y="Proportion") +
-  theme_minimal()
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+p8 <- x |>
+  group_by(siteID, Race2) |>
+  summarise(n = n()) |>
+  ggplot(aes(x = siteID, y = n, fill = Race2)) +
+  geom_bar(stat="identity", position="fill") +
+  labs(title="Race Distribution by Site", y="Proportion") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+p9 <- x |>
+  group_by(siteID, PreHospNotify) |>
+  summarise(n = n()) |>
+  ggplot(aes(x = siteID, y = n, fill = PreHospNotify)) +
+  geom_bar(stat="identity", position="fill") +
+  labs(title="Notification Distribution by Site", y="Proportion") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+x$EMSvsCar <- factor(as.integer(as.character(x$EMSvsCar)), levels = c(0, 1))
+
+p10 <- x |>
+  group_by(siteID, EMSvsCar) |>
+  summarise(n = n()) |>
+  ggplot(aes(x = siteID, y = n, fill = EMSvsCar)) +
+  geom_bar(stat="identity", position="fill") +
+  labs(title="Transport Distribution by Site", y="Proportion") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+(p7 + p8) / (p9 + p10)
 ```
 
-```{r label = "eda7", echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Patient discharge outcomes by treatment", fig.show = 'hold'}
+```{r label = "eda6", fig.cap = "Patient discharge outcomes by treatment and pre-hospital factors", fig.show = 'hold'}
 p1 <- ggplot(x, aes(x = hadTPA, fill = homeOrRehab)) +
   geom_bar(position = "fill") +
   labs(title = "By TPA Treatment", y = "Proportion") +
@@ -194,7 +226,26 @@ p6 <- ggplot(x, aes(x = tpaComplic, fill = homeOrRehab)) +
   )
 ```
 
-```{r}
+```{r label = "eda7", fig.cap = "Patient discharge outcomes by demographic factors", fig.show = 'hold', fig.width=6, fig.length=6}
+x$AgeGroup <- cut(
+  x$Age,
+  breaks = c(-Inf, 20, 40, 60, 80, Inf),
+  labels = c("0–20", "20–40", "40–60", "60–80", "80+"),
+  right = FALSE
+)
+
+p_age <- ggplot(x, aes(x = AgeGroup, fill = homeOrRehab)) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Outcome by Age Group",
+    x = "Age Group",
+    y = "Proportion"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
 p5 <- ggplot(x, aes(x = Gender, fill = homeOrRehab)) +
   geom_bar(position = "fill") +
   labs(title="Outcome by Gender", y="Proportion") +
@@ -208,12 +259,12 @@ p6 <- ggplot(x, aes(x = Race2, fill = homeOrRehab)) +
     axis.text.x = element_text(angle = 45, hjust = 1)
   )
 
-(p5+p6) +
+p_age / (p5+p6) +
   plot_layout(guides = "collect") +
   theme(legend.position = "right")
 ```
 
-```{r}
+```{r label = "eda8", fig.cap = "Outcomes change over time", fig.show = 'hold'}
 x |>
   group_by(Time2, siteID) |>
   summarise(
@@ -235,7 +286,6 @@ x |>
   ) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
 ```
 
 # Frequentist model
