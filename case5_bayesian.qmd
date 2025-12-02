@@ -296,3 +296,11 @@ kable(df_top10, digits = 2, align = "c",
 post_summary <- summary(sim)
 post_summary[[1]]
 ```
+
+```{r}
+
+credible_ints<-jags.out$BUGSoutput$summary[,c("2.5%","97.5%")]
+
+credible_ints|>kable()
+
+```
