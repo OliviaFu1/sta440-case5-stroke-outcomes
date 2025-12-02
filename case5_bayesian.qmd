@@ -226,7 +226,7 @@ ggplot(df_beta, aes(x = reorder(parameter, ESS), y = ESS)) +
 ```
 
 ```{r}
-traceplot(sim, varname = fun.params)
+# traceplot(sim, varname = fun.params)
 ```
 
 ```{r}
@@ -303,4 +303,75 @@ credible_ints<-jags.out$BUGSoutput$summary[,c("2.5%","97.5%")]
 
 credible_ints|>kable()
 
+```
+
+```{r}
+stats <- post_summary$statistics
+quants <- post_summary$quantiles
+
+idx_beta <- grepl("^beta", rownames(stats))
+
+beta_stats <- stats[idx_beta, ]
+beta_quants <- quants[idx_beta, ]
+
+ci_exclude_zero <- (beta_quants[,"2.5%"] > 0) | (beta_quants[,"97.5%"] < 0)
+
+beta_table <- data.frame(
+  Parameter = rownames(beta_stats),
+  Mean = beta_stats[,"Mean"],
+  CI_lower = beta_quants[,"2.5%"],
+  CI_upper = beta_quants[,"97.5%"]
+)
+
+beta_sig <- beta_table[ci_exclude_zero, ]
+
+kable(beta_sig, digits = 3, row.names = FALSE)
+```
+
+```{r}
+post <- do.call(rbind, sim)
+
+selected_betas <- c(
+  "beta_age",
+  "beta_gender[1]",
+  "beta_race[1]",
+  "beta_transport",
+  "beta_notify",
+  "beta_TPA",
+  "beta_Thromb",
+  "beta_tpaComp",
+  "beta_thrComp",
+  "beta_site[1]",
+  "beta_time[1]"
+)
+
+beta_post <- post[, selected_betas, drop = FALSE]
+
+df_long <- as.data.frame(beta_post) |>
+  mutate(iter = 1:n()) |>
+  pivot_longer(
+    cols = all_of(selected_betas),
+    names_to = "Parameter",
+    values_to = "Posterior"
+  )
+
+prior_mean <- 0
+prior_sd   <- sqrt(1 / 0.001)
+
+ggplot(df_long, aes(x = Posterior)) +
+  geom_density(fill = "steelblue", alpha = 0.4, size = 0.6) +
+  stat_function(
+    fun = dnorm,
+    args = list(mean = prior_mean, sd = prior_sd),
+    color = "red", linetype = "dashed", size = 0.7
+  ) +
+  facet_wrap(~ Parameter, scales = "free", ncol = 4) +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "Posterior vs Prior for β Parameters",
+    subtitle = "Posterior densities (blue) vs diffuse Normal prior (red dashed)",
+    x = "Coefficient Value",
+    y = "Density"
+  ) +
+  scale_x_continuous(n.breaks = 4)
 ```
