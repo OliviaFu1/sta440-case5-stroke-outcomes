@@ -23,53 +23,51 @@ The primary research question is whether the probability of a good discharge out
 
 # Exploratory Data Analysis
 
-The dataset contains 1,752 patient encounters with information on demographics, arrival mode (EMS vs. car), pre-hospital notification status, treatment characteristics, complications, and discharge disposition. Several variables exhibit substantial missingness, most notably Age (46%), PreHospNotify (12%), EMSvsCar (5%), Race2 (5%), and the outcome variable (3%) (Figure \@ref(fig:eda1)).
+The dataset contains 1,752 patient encounters with information on demographics, arrival mode (EMS vs. car), pre-hospital notification status, treatment characteristics, complications, and discharge disposition. Several variables exhibit substantial missingness, most notably Age (46%), PreHospNotify (12%), EMSvsCar (5%), Race2 (5%), and the outcome variable (3%) (@fig-eda1).
 
-To characterize the missingness mechanism, we examined its distribution across key dimensions. Missingness was not uniform across sites (Figure \@ref(fig:eda2)); for example, Site 170 reported no Age values, and other variables also showed site-specific gaps, suggesting operational or reporting differences. Missingness also varied over time (Figure \@ref(fig:eda3)). Age and PreHospNotify were heavily missing in the early baseline period (Y1Q1) and improved in later quarters, consistent with early implementation and documentation challenges. Missingness further differed by outcome level (Figure \@ref(fig:eda4)), particularly for Age and PreHospNotify, indicating that the probability of being missing relates to other observed variables. Together, these patterns rule out a Missing Completely at Random (MCAR) mechanism. Because the missingness is unlikely to depend on the unobserved values themselves, we proceeded under a Missing at Random (MAR) assumption.
+To characterize the missingness mechanism, we examined its distribution across key dimensions. Missingness was not uniform across sites (@fig-eda2); for example, Site 170 reported no Age values, and other variables also showed site-specific gaps, suggesting operational or reporting differences. Missingness also varied over time (@fig-eda3). Age and PreHospNotify were heavily missing in the early baseline period (Y1Q1) and improved in later quarters, consistent with early implementation and documentation challenges. Missingness further differed by outcome level (@fig-eda4), particularly for Age and PreHospNotify, indicating that the probability of being missing relates to other observed variables. Together, these patterns rule out a Missing Completely at Random (MCAR) mechanism. Because the missingness is unlikely to depend on the unobserved values themselves, we proceeded under a Missing at Random (MAR) assumption.
 
-We also explored variation in demographic and clinical characteristics across sites and their relationships with discharge outcomes. Age distributions differed across centers, with some sites treating more older patients (Figure \@ref(fig:eda5)), and racial composition also varied, with certain hospitals serving predominantly Caucasian patients and others having higher proportions of African American or Other race groups (Figure \@ref(fig:eda6)). On the other hand, gender, pre-hospital notification, and arrival mode were relatively consistent across sites.
+We also explored variation in demographic and clinical characteristics across sites and their relationships with discharge outcomes. Age distributions differed across centers, with some sites treating more older patients (@fig-eda5), and racial composition also varied, with certain hospitals serving predominantly Caucasian patients and others having higher proportions of African American or Other race groups (@fig-eda6). On the other hand, gender, pre-hospital notification, and arrival mode were relatively consistent across sites.
 
-Observed associations with the outcome were clinically consistent. Patients with TPA or thrombectomy complications had much lower probabilities of home/rehab discharge; EMS arrival (a proxy for greater stroke severity) was also associated with worse outcomes, while TPA treatment corresponded to improved discharge disposition (Figure \@ref(fig:eda7)). Older age, female gender, and African American/Other race groups showed lower rates of favorable discharge (Figure \@ref(fig:eda8)). When outcomes were plotted over time, several sites showed modest improvement from baseline to the end of the study period, whereas others exhibited fluctuations or even declining trends (Figure \@ref(fig:eda9)). These observations underscored the need for statistical modeling that accounts for site heterogeneity, temporal trends, and the non-random missingness structure identified in the EDA.
+Observed associations with the outcome were clinically consistent. Patients with TPA or thrombectomy complications had much lower probabilities of home/rehab discharge; EMS arrival (a proxy for greater stroke severity) was also associated with worse outcomes, while TPA treatment corresponded to improved discharge disposition (@fig-eda7). Older age, female gender, and African American/Other race groups showed lower rates of favorable discharge (@fig-eda8). When outcomes were plotted over time, several sites showed modest improvement from baseline to the end of the study period, whereas others exhibited fluctuations or even declining trends (@fig-eda9). These observations underscored the need for statistical modeling that accounts for site heterogeneity, temporal trends, and the non-random missingness structure identified in the EDA.
 
 # Model Rationale, Evaluation, and Results
 
 ## Frequentist Model
 
-Given our goals, identifying factors associated with good discharge outcomes and assessing whether outcomes improved over time, we used a regression framework that adjusts for demographic, clinical, and treatment variables. Because patients were clustered within nine stroke centers and our EDA showed meaningful site-level differences, we first fit a mixed-effects logistic regression with a random intercept for site prior to moving to the Bayesian model. To capture broader temporal trends and reduce quarter-to-quarter noise, we collapsed the study timeline into three periods (baseline, middle, end). Age was centered for numerical stability. After completing multiple imputation, we fit this mixed-effects logistic regression on one completed dataset to obtain initial frequentist estimates.
+We used multilevel multiple imputation by chained equations (MICE) to address missing data under the MAR assumption. Age was imputed using the `2l.pan` method, which specifies a two-level normal model with a random intercept for site, appropriate for continuous variables exhibiting site-level clustering. Race2 was imputed using `polyreg` to model its multinomial categorical structure. EMSvsCar, PreHospNotify, and homeOrRehab were imputed using `logreg`, consistent with their binary outcomes. We generated 20 imputed datasets in total.
+
+Given our goals of identifying factors associated with good discharge outcomes and evaluating whether outcomes improved over time, we used a regression framework that adjusts for demographic, clinical, and treatment variables. Because patients were clustered within nine stroke centers and the EDA indicated substantial site-level heterogeneity, we fit a mixed-effects logistic regression with a random intercept for site. To capture broader temporal trends and reduce quarter-to-quarter variability, we collapsed the study timeline into three periods (baseline, middle, end). Age was centered for numerical stability. We fit this model to each of the 20 imputed datasets and then pooled the results to account for both the variation within each imputation and the uncertainty across imputations.
 
 $$
-logit(P(homeOrRehab=1))=β_0​+ β_{\text{EMS}}​+β_{\text{PreHospNotify}}​+β_{\text{TPA}}+β_{\text{Thrombectomy}}+β_{\text{Complications}}+β_{\text{Age}}​+β_{\text{Period}}+β_{\text{Gender}}+β_{\text{Race}}+usiteID​.
+\begin{aligned}\text{logit}\{P(\text{homeOrRehab}=1)\}&= \beta_0  + \beta_{\text{EMS}}  + \beta_{\text{PreHospNotify}}  + \beta_{\text{TPA}}  + \beta_{\text{Thrombectomy}}  + \beta_{\text{TPAComp}}  + \beta_{\text{ThrombComp}} \\&\quad + \beta_{\text{Age}}  + \beta_{\text{Period}}  + \beta_{\text{Gender}}  + \beta_{\text{Race}}  + u_{\text{siteID}}\end{aligned}
 $$
 
-Model convergence was successful using the bobyqa optimizer. Residual diagnostics, including Pearson residual vs. fitted plots and binned residual plots, indicated no major systematic deviations, though typical heteroskedasticity patterns were present due to the binary outcome. Classification performance was moderate: overall accuracy was 77%, with high sensitivity (0.92) but lower specificity (0.41), reflecting that the model predicts good outcomes more reliably than poor ones.
+We fit the logistic mixed-effects model using the `glmer` function from the `lme4` package, with the bobyqa optimizer to improve convergence. The imputations were highly stable across iterations. We examined the binned residual plots for all 20 imputations and found no substantial systematic deviations or concerning residual patterns. For illustration, we present the plot from imputation 1 (@fig-freq1). To evaluate predictive performance, we computed the mean AUC across all 20 imputed models, getting an average of 0.743 (Table 2). We also present the ROC curve for imputation 1 (@fig-freq2), which indicates a model with high sensitivity but relatively weaker specificity, so the model identifies good outcomes more reliably than poor ones.
 
-Parameter estimates aligned with clinical expectations. Older age significantly decreased the odds of a good outcome ( $\beta$ = −0.068, p \< 0.001), as did thrombectomy treatment, TPA complications, and thrombectomy complications, likely reflecting the underlying stroke severity of these patients. The effect of age is strong and approximately linear, though mild curvature suggests that a nonlinear term or spline could improve fit. Treatment effects likely vary with age, but current models do not include interaction terms; exploring age × treatment interactions may clarify differential treatment responses across age groups. Female gender and African American race were also associated with lower odds of home/rehab discharge. However, TPA treatment significantly increased the odds of a good outcome ($\beta$ = 0.467, p = 0.005). Arrival by EMS was associated with worse outcomes relative to car arrival, again consistent with EMS transporting more severe cases.
+From the pooled regression results (Table 1), older age was associated with substantially lower odds of a good outcome ($\beta$ = –0.041, p \< 0.001). EMS arrival, thrombectomy treatment, TPA complications, and thrombectomy complications also decreased the odds of home or rehab discharge, likely reflecting greater underlying stroke severity among these patients. In this model, age was assumed to have a linear effect, although nonlinearity is plausible; allowing flexible age terms or incorporating age × treatment interactions may help clarify differential treatment responses across age groups. Female gender and African American race were also associated with lower odds of home/rehab discharge. However, TPA treatment significantly increased the odds of a good outcome ($\beta$ = 0.570, p \< 0.001).
 
-The program's time period effect was modest. The middle period did not differ significantly from baseline, while the end period showed a positive but borderline significant increase in good outcomes ($\beta$ = 0.285, p = 0.099). This suggests a possible improvement in outcomes as the program reached full implementation, though the evidence is not strong at the frequentist 5% significance level.
+The estimated time-period effects of the program were modest. The middle period did not differ meaningfully from the baseline, while the end period showed a positive, though not conventionally significant, association with improved outcomes ($\beta$ = 0.240, p = 0.175). This suggests a possible improvement in outcomes as the program reached full implementation, though the evidence is not strong at the frequentist 5% significance level, potentially due to site-level variability and the influence of the COVID period.
 
 ## **Bayesian Model**
 
 ### **Rationale and Implementation**
 
-For the Bayesian analysis, we first specified a likelihood for the outcome variable, homeOrRehab,
-which is binary. We modeled homeOrRehab𝑖 as Bernoulli with a logit link, and let the log-odds
-depend on site (9 centers), time (8 quarterly periods), Age, Gender, Race, Transport mode (EMS
-vs. car), Pre-hospital notification, TPA, Thrombectomy, and their complications. We experimented
-with alternative forms for age (log(age), age-squared, and centered age), but these did not improve
-fit or convergence, so we retained the linear age term. We kept all 8 quarterly time periods because we wanted the Bayesian model to capture quarter-by-quarter variation rather than collapsing the timeline. We also experimented with treating site as a random effect, but this specification did not noticeably improve convergence or model fit, so we used the simpler fixed-effects structure. 
-Next, we built submodels for the variables with missing data: Race, Transport (EMS vs. car), Pre-hospital notification, and Age. Race has three categories, so we used a multinomial model with site-specific probabilities and Dirichlet priors (￿ = 0.5). Transport was modeled with a logistic regression that included site and four clinical variables (TPA, Thrombectomy, and their complications). For Pre-hospital notification, we ensured that notification is only possible for EMS arrivals by defining the notification probability as a logistic model for EMS patients (depending on site, race, and time) multiplied by an indicator for EMS transport. Finally, we modeled Age with a normal distribution whose mean varies by site, race, and time. We selected the linear predictors in each missing-data model based on regressions of the missingness indicators and our reasoning about which variables were likely to influence each missingness pattern.
+For the Bayesian analysis, we first specified a likelihood for the outcome variable, homeOrRehab, which is binary. We modeled $\text{homeOrRehab}_i$ as Bernoulli with a logit link, and let the log-odds depend on site (9 centers), time (8 quarterly periods), Age, Gender, Race, Transport mode (EMS vs. car), Pre-hospital notification, TPA, Thrombectomy, and their complications. We experimented with alternative forms for age (log(age), age-squared, and centered age), but these did not improve fit or convergence, so we retained the linear age term. We kept all 8 quarterly time periods because we wanted the Bayesian model to capture quarter-by-quarter variation rather than collapsing the timeline. We also experimented with treating site as a random effect, but this specification did not noticeably improve convergence or model fit, so we used the simpler fixed-effects structure.
 
-We assigned weakly informative priors to all regression coeﬀicients, specifying Normal distributions with mean 0 and precision 0.001. For the Age variance, we placed a Gamma(0.001, 0.001) prior on the precision parameter. The model was estimated in JAGS using four chains, each run for 50,000 iterations with a burn-in of 10,000.
+Next, we built submodels for the variables with missing data: Race, Transport (EMS vs. car), Pre-hospital notification, and Age. Race has three categories, so we used a multinomial model with site-specific probabilities and Dirichlet priors ($\alpha$ = 0.5). Transport was modeled with a logistic regression that included site and four clinical variables (TPA, Thrombectomy, and their complications). For Pre-hospital notification, we ensured that notification is only possible for EMS arrivals by defining the notification probability as a logistic model for EMS patients (depending on site, race, and time) multiplied by an indicator for EMS transport. Finally, we modeled Age with a normal distribution whose mean varies by site, race, and time. We selected the linear predictors in each missing-data model based on regressions of the missingness indicators and our reasoning about which variables were likely to influence each missingness pattern.
+
+We assigned weakly informative priors to all regression coefficients, specifying Normal distributions with mean 0 and precision 0.001. For the Age variance, we placed a Gamma(0.001, 0.001) prior on the precision parameter. The model was estimated in JAGS using four chains, each run for 50,000 iterations with a burn-in of 10,000.
 
 ### **Evaluation**
 
-We used standard Bayesian diagnostics for assesment, including trace plots, effective sample sizes (ESS), autocorrelation functions (ACF), and Gelman–Rubin $\hat{R}$ statistics. Trace plots for the primary regression coefficients (age, EMS transport, thrombectomy, tPA treatment, and treatment-related complications) showed tight, overlapping chains with no visible drift or nonstationarity, indicating good mixing. One exception was the age coefficient ($\beta{age}$), which showed slower mixing and a lower ESS relative to other parameters (Figure \@ref(fig:bay1)). We explored several transformations (log-age, age\^2, centering) to improve mixing, but all versions yielded comparable posterior distributions. Despite the lower ESS, $\beta{age}$ remained well-identified with a narrow posterior, so its interpretation is reliable.
+We used standard Bayesian diagnostics for assesment, including trace plots, effective sample sizes (ESS), autocorrelation functions (ACF), and Gelman–Rubin $\hat{R}$ statistics. Trace plots for the primary regression coefficients (age, EMS transport, thrombectomy, tPA treatment, and treatment-related complications) showed tight, overlapping chains with no visible drift or nonstationarity, indicating good mixing. One exception was the age coefficient ($\beta{age}$), which showed slower mixing and a lower ESS relative to other parameters (@fig-bay1). We explored several transformations (log-age, age\^2, centering) to improve mixing, but all versions yielded comparable posterior distributions. Despite the lower ESS, $\beta{age}$ remained well-identified with a narrow posterior, so its interpretation is reliable.
 
-Effective sample sizes for all other fixed-effect parameters were extremely high (often \>150,000), showing good chain independence (Figure \@ref(fig:bay1)). Autocorrelation diagnostics further supported convergence as the majority of coefficients displayed very rapid decay, indicating weak dependence across MCMC iterations (Figure \@ref(fig:bay4)). Again, $\beta{age}$ showed modestly slower decay but still stabilized sufficiently for inference (Figure \@ref(fig:bay4)).
+Effective sample sizes for all other fixed-effect parameters were extremely high (often \>150,000), showing good chain independence (@fig-bay1). Autocorrelation diagnostics further supported convergence as the majority of coefficients displayed very rapid decay, indicating weak dependence across MCMC iterations (@fig-bay4). Again, $\beta{age}$ showed modestly slower decay but still stabilized sufficiently for inference (@fig-bay4).
 
-Gelman–Rubin $\hat{R}$ values for all fixed-effect outcome-model parameters were approximately 1.00, with upper bounds below 1.03, meeting the conventional convergence threshold (Figure \@ref(fig:bay2)). A few parameters belonging to the missing-data submodels (some delta_time and site_gamma effects) showed higher $\hat{R}$ values and wider uncertainty (Figure \@ref(fig:bay2)). This was expected due to limited identifiability of missingness mechanisms and does not undermine inference for the outcome model.
+Gelman–Rubin $\hat{R}$ values for all fixed-effect outcome-model parameters were approximately 1.00, with upper bounds below 1.03, meeting the conventional convergence threshold (@fig-bay2). A few parameters belonging to the missing-data submodels (some delta_time and site_gamma effects) showed higher $\hat{R}$ values and wider uncertainty (@fig-bay2). This was expected due to limited identifiability of missingness mechanisms and does not undermine inference for the outcome model.
 
-We compared posterior densities to their corresponding diffuse Normal priors (Figure \@ref(fig:bay3)). For the main clinical coefficients, the posterior distributions were substantially narrower, showing that the data were informative (Figure \@ref(fig:bay3)). In contrast, gender, race, site, and time coefficients retained wide posteriors, indicating weak identifiability and imprecision, which is consistent with the high variability in the underlying data (Figure \@ref(fig:bay3)).
+We compared posterior densities to their corresponding diffuse Normal priors (@fig-bay3). For the main clinical coefficients, the posterior distributions were substantially narrower, showing that the data were informative (@fig-bay3). In contrast, gender, race, site, and time coefficients retained wide posteriors, indicating weak identifiability and imprecision, which is consistent with the high variability in the underlying data (@fig-bay3).
 
 ### Results
 
@@ -79,11 +77,11 @@ We compared posterior densities to their corresponding diffuse Normal priors (Fi
 
 # Appendix
 
-```{r echo = FALSE, message = FALSE, warning = FALSE}
+```{r}
 load("./strokeStudy.RData")
 ```
 
-```{r echo = FALSE, message = FALSE, warning = FALSE}
+```{r}
 library(ggplot2)
 library(naniar)
 library(dplyr)
@@ -91,7 +89,6 @@ library(tidyr)
 library(knitr)
 library(patchwork)
 library(lme4)
-library(pROC)
 library(pROC)
 library(ggplot2)
 library(rjags)
@@ -103,7 +100,7 @@ library(coda)
 
 ## Missing values
 
-```{r echo = FALSE, message = FALSE, warning = FALSE}
+```{r}
 # Missing -> NA for Race2
 x <- x |>
   mutate(
@@ -113,20 +110,29 @@ x <- x |>
 
 ## Missing Data Analysis
 
-```{r label = "eda1", fig.cap = "Missing Data", fig.show = 'hold'}
+```{r}
+#| label: fig-eda1
+#| fig-cap: "Missing Data"
+
 x |>
   select(where(~ any(is.na(.)))) |>
   vis_miss()
 ```
 
-```{r label = "eda2", fig.cap = "Missing Data by Site", fig.show = 'hold'}
+```{r}
+#| label: fig-eda2
+#| fig-cap: "Missing Data by Site"
+
 x |>
   select(-Time2) |>
   gg_miss_var(facet = siteID) +
   labs(title = "Missing Data by Variable and Site")
 ```
 
-```{r label = "eda3", fig.cap = "Missing Heatmap by Quarter by Variable", fig.show = 'hold'}
+```{r}
+#| label: fig-eda3
+#| fig-cap: "Missing Heatmap by Quarter by Variable"
+
 vars_with_missing <- c("Age", "Race2", "EMSvsCar", "PreHospNotify", "homeOrRehab")
 
 x |>
@@ -155,13 +161,19 @@ x |>
   scale_y_discrete(labels = ~ gsub("_miss", "", .x))
 ```
 
-```{r label = "eda4", fig.cap = "Missingness by outcome", fig.show = 'hold'}
+```{r}
+#| label: fig-eda4
+#| fig-cap: "Missingness by outcome"
+
 gg_miss_fct(x,fct=homeOrRehab)
 ```
 
 ## Covariates & Associations
 
-```{r label = "eda5", echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Age Distribution by Site 1-9", fig.show = 'hold'}
+```{r}
+#| label: fig-eda5
+#| fig-cap: "Age Distribution by Site 1-9"
+
 ggplot(x, aes(x = Age)) +
   geom_histogram(bins = 20) +
   facet_wrap(~ siteID) +
@@ -169,7 +181,9 @@ ggplot(x, aes(x = Age)) +
   theme_minimal()
 ```
 
-```{r label = "eda6", echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Distribution by Site", fig.show = 'hold'}
+```{r}
+#| label: fig-eda6
+#| fig-cap: "Demographic Distribution by Site"
 
 p7 <- x |>
   group_by(siteID, Gender) |>
@@ -212,7 +226,10 @@ p10 <- x |>
 (p7 + p8) / (p9 + p10)
 ```
 
-```{r label = "eda7", fig.cap = "Patient discharge outcomes by treatment and pre-hospital factors", fig.show = 'hold'}
+```{r}
+#| label: fig-eda7
+#| fig-cap: "Patient discharge outcomes by treatment and pre-hospital factors"
+
 p1 <- ggplot(x, aes(x = hadTPA, fill = homeOrRehab)) +
   geom_bar(position = "fill") +
   labs(title = "By TPA Treatment", y = "Proportion") +
@@ -250,7 +267,12 @@ p6 <- ggplot(x, aes(x = tpaComplic, fill = homeOrRehab)) +
   )
 ```
 
-```{r label = "eda8", fig.cap = "Patient discharge outcomes by demographic factors", fig.show = 'hold', fig.width=6, fig.height=6}
+```{r}
+#| label: fig-eda8
+#| fig-cap: "Patient discharge outcomes by demographic factors"
+#| fig-width: 6
+#| fig-height: 6
+
 x$AgeGroup <- cut(
   x$Age,
   breaks = c(-Inf, 20, 40, 60, 80, Inf),
@@ -288,7 +310,10 @@ p_age / (p5+p6) +
   theme(legend.position = "right")
 ```
 
-```{r label = "eda9", fig.cap = "Outcomes change over time", fig.show = 'hold'}
+```{r}
+#| label: fig-eda9
+#| fig-cap: "Outcomes change over time"
+
 x |>
   group_by(Time2, siteID) |>
   summarise(
@@ -314,7 +339,7 @@ x |>
 
 # Frequentist model
 
-```{r echo = FALSE, message = FALSE, warning = FALSE}
+```{r}
 # MICE
 library(mice)
 library(miceadds)
@@ -337,52 +362,51 @@ pred_matrix <- make.predictorMatrix(x)
 pred_matrix["Age", "siteID"] <- -2
 ```
 
-```{r echo = FALSE, message = FALSE, warning = FALSE}
-
-imp <- mice(
-  x,
-  m = 20,
-  method = mice_imp,
-  predictorMatrix = pred_matrix,
-  cluster = x$siteID,
-  seed = 2025
-)
+```{r}
+# imp <- mice(
+#   x,
+#   m = 20,
+#   method = mice_imp,
+#   predictorMatrix = pred_matrix,
+#   cluster = x$siteID,
+#   seed = 2025
+# )
 ```
 
 ```{r}
 # saveRDS(imp, file = "imp_m20.rds")
-#imp <- readRDS("./imp_m20.rds")
+imp <- readRDS("./imp_m20.rds")
 ```
 
 ```{r}
-ctrl <- glmerControl(optimizer = "bobyqa")
-
-models <- with(
-  imp,
-  {
-    period <- case_when(
-      Time2 %in% c("Y1Q1", "Y1Q2") ~ "baseline",
-      Time2 %in% c("Y1Q3", "Y1Q4", "Y2Q1", "Y2Q2") ~ "middle",
-      Time2 %in% c("Y2Q3", "Y2Q4") ~ "end"
-    )
-    period <- factor(period, levels = c("baseline","middle","end"))
-
-    Age_c <- Age - mean(Age, na.rm = TRUE)
-
-    glmer(
-      homeOrRehab ~ EMSvsCar + PreHospNotify + hadThrombectomy +
-        hadTPA + tpaComplic + thrComplic + Age_c + period + Gender + Race2 +
-        (1 | siteID),
-      family = binomial,
-      control = ctrl
-    )
-  }
-)
+# ctrl <- glmerControl(optimizer = "bobyqa")
+# 
+# models <- with(
+#   imp,
+#   {
+#     period <- case_when(
+#       Time2 %in% c("Y1Q1", "Y1Q2") ~ "baseline",
+#       Time2 %in% c("Y1Q3", "Y1Q4", "Y2Q1", "Y2Q2") ~ "middle",
+#       Time2 %in% c("Y2Q3", "Y2Q4") ~ "end"
+#     )
+#     period <- factor(period, levels = c("baseline","middle","end"))
+# 
+#     Age_c <- Age - mean(Age, na.rm = TRUE)
+# 
+#     glmer(
+#       homeOrRehab ~ EMSvsCar + PreHospNotify + hadThrombectomy +
+#         hadTPA + tpaComplic + thrComplic + Age_c + period + Gender + Race2 +
+#         (1 | siteID),
+#       family = binomial,
+#       control = ctrl
+#     )
+#   }
+# )
 ```
 
 ```{r}
 # saveRDS(models, file = "models_glmer_m20.rds")
-# models <- readRDS("models_glmer_m20.rds")
+models <- readRDS("models_glmer_m20.rds")
 ```
 
 ```{r}
@@ -425,7 +449,8 @@ pooled_results <- data.frame(
   p.value   = p_val
 )
 
-kable(pooled_results, digits = 3, row.names = FALSE)
+kable(pooled_results, digits = 3, row.names = FALSE,
+      caption = "Pooled Summary for Frequentist Model")
 ```
 
 ```{r}
@@ -438,14 +463,35 @@ auc_summary <- data.frame(
   Value  = c(mean(unlist(auc_list)), sd(unlist(auc_list)))
 )
 
-kable(auc_summary, digits = 3, row.names = FALSE)
+kable(auc_summary, digits = 3, row.names = FALSE,
+      caption = "Mean AUC and SD Across 20 Imputations")
 ```
 
-```{r label = "freq", fig.cap = "ROC Curve for the Frequentist Model", fig.show = 'hold', warning=FALSE, message=FALSE}
+```{r}
+#| label: fig-freq1
+#| fig-cap: "Binned Residual Plot for Imputation 1"
 
 m1 <- models$analyses[[1]]
 p1 <- predict(m1, type = "response")
-y <- m1@frame$homeOrRehab
+y <- ifelse(m1@frame$homeOrRehab == "TRUE", 1, 0)
+
+pearson_res <- (y - p1) / sqrt(p1 * (1 - p1))
+
+library(arm)
+
+binnedplot(
+  x     = p1,
+  y     = pearson_res,
+  xlab = "Fitted Probability",
+  ylab = "Pearson Residual",
+  main = "Binned Residual Plot (Imputation 1)"
+)
+```
+
+```{r}
+#| label: fig-freq2
+#| fig-cap: "ROC plot"
+
 roc_obj <- roc(y, p1)
 
 roc_df <- data.frame(
@@ -467,41 +513,31 @@ ggplot(roc_df, aes(x = fpr, y = tpr)) +
 
 ### Bayesian Model:
 
-```{r echo = FALSE, message = FALSE, warning = FALSE}
+```{r}
 load("./strokeStudy.RData")
 ```
 
-```{r echo = FALSE, message = FALSE, warning = FALSE}
-
-# Missing -> NA for Race2
-x$Race2[x$Race2=="Missing"]<-NA
+```{r}
+x$Race2[x$Race2=="Missing"] <- NA
 x$Race2<-factor(x$Race2)
-# Mapping of factors to numbers in the next step
-show_mapping <- function(f){
-  data.frame(
-    code  = seq_along(levels(f)),
-    level = levels(f)
-  )
-}
 
-show_mapping(x$siteID)
-show_mapping(x$Time2)
-show_mapping(x$Gender)
-show_mapping(x$Race2)
 # Convert all factors to integer indices
 x$siteID  <- as.numeric(factor(x$siteID))   # becomes 1..9
 x$Time2   <- as.numeric(factor(x$Time2))    # becomes 1..8
 x$Gender  <- as.numeric(factor(x$Gender))   # becomes 1..2
 x$Race2   <- as.numeric(factor(x$Race2))    # becomes 1..3
+
 # Convert logicals to 0/1
 logical_vars <- c("hadTPA","hadThrombectomy","tpaComplic","thrComplic","homeOrRehab")
 x[logical_vars] <- lapply(x[logical_vars], function(v) as.numeric(v))
+
 # Convert PreHospNotify (Yes/No) to 0/1
 x$PreHospNotify <- ifelse(x$PreHospNotify == "Yes", 1,
                            ifelse(x$PreHospNotify == "No", 0, NA))
 
 # Convert EMSvsCar (currently dbl) to 0/1 integer
 x$EMSvsCar <- as.integer(x$EMSvsCar)
+
 # Set EMSvsCar = 1 if PreHospNotify = 1
 x$EMSvsCar[is.na(x$EMSvsCar) & x$PreHospNotify == 1] <- 1
 x$M_A      <- ifelse(is.na(x$Age), 1, 0)
@@ -510,10 +546,6 @@ x$M_trans  <- ifelse(is.na(x$EMSvsCar), 1, 0)
 x$M_race   <- ifelse(is.na(x$Race2), 1, 0)
 age_mean <- mean(x$Age, na.rm = TRUE)
 
-x <- x |>
-  mutate(logAge = log(Age),
-         sqrAge = (Age)^2 / 1000,
-         Age_c10 = (Age - age_mean) / 10)
 # Build the data list for JAGS
 bdat <- list(
   N = nrow(x),
@@ -556,23 +588,29 @@ set.seed(440)
 fun.model.file <- "model_stroke.R" 
 mcmc.pars <- list(iter = 10000, burn = 2000, nchain=4, thin=1)
 
-jags.out <- jags(
-  data = bdat,
-  inits = NULL,
-  parameters.to.save = fun.params,
-  model.file = fun.model.file,
-  n.chains = mcmc.pars$nchain,
-  n.iter = mcmc.pars$iter,
-  n.burnin = mcmc.pars$burn,
-  n.thin = mcmc.pars$thin,
-  DIC = FALSE,
-  progress.bar = "none"
-)
+# jags.out <- jags(
+#   data = bdat,
+#   inits = NULL,
+#   parameters.to.save = fun.params,
+#   model.file = fun.model.file,
+#   n.chains = mcmc.pars$nchain,
+#   n.iter = mcmc.pars$iter,
+#   n.burnin = mcmc.pars$burn,
+#   n.thin = mcmc.pars$thin,
+#   DIC = FALSE,
+#   progress.bar = "none"
+# )
+```
+
+```{r}
+load("./bayes_model_run_final.RData")
 ```
 
 ### Bayesian Evaluation:
 
-```{r label = "bay1", fig.cap = "ESS for Bayesian Parameters", fig.show = 'hold'}
+```{r}
+#| label: fig-bay1
+#| fig-cap: "ESS for Bayesian Parameters"
 
 sim <- as.mcmc(jags.out)
 ess <- effectiveSize(sim)
@@ -593,7 +631,9 @@ ggplot(df_beta, aes(x = reorder(parameter, ESS), y = ESS)) +
   theme_minimal()
 ```
 
-```{r label = "bay2", fig.cap = "Gelman-Rubin Rhat Values for Beta Parameters", fig.show = 'hold'}
+```{r}
+#| label: fig-bay2
+#| fig-cap: "Gelman-Rubin Rhat Values for Beta Parameters"
 
 gelman_results <- gelman.diag(sim, transform=TRUE)
 psrf_df <- as.data.frame(gelman_results$psrf)
@@ -623,7 +663,9 @@ ggplot(psrf_beta, aes(x = Point_Est, y = reorder(Parameter, Point_Est))) +
   )
 ```
 
-```{r label = "bay3", fig.cap = "Posterior vs. Prior Distributions for the Beta Parameters", fig.show = 'hold'}
+```{r}
+#| label: fig-bay3
+#| fig-cap: "Posterior vs. Prior Distributions for the Beta Parameters"
 
 post <- do.call(rbind, sim)
 
@@ -664,7 +706,7 @@ ggplot(df_long, aes(x = Posterior)) +
   facet_wrap(~ Parameter, scales = "free", ncol = 4) +
   theme_minimal(base_size = 13) +
   labs(
-    title = "Posterior vs Prior for β Parameters",
+    title = "Posterior vs Prior for Beta Parameters",
     subtitle = "Posterior densities (blue) vs diffuse Normal prior (red dashed)",
     x = "Coefficient Value",
     y = "Density"
@@ -672,7 +714,11 @@ ggplot(df_long, aes(x = Posterior)) +
   scale_x_continuous(n.breaks = 4)
 ```
 
-```{r label = "bay4", fig.cap = "Autocorrelation Plots for the Beta Parameters", fig.show = 'hold', fig.width=8, fig.height=6}
+```{r}
+#| label: fig-bay4
+#| fig-cap: "Autocorrelation Plots for the Beta Parameters"
+#| fig-width: 8
+#| fig-height: 6
 
 m_combined <- do.call(rbind, sim)
 
@@ -686,23 +732,12 @@ params_to_plot <- c(
 
 m_sub <- m_combined[, params_to_plot]
 autocorr.plot(m_sub, lag.max = 40)
-
 ```
 
-### Bayesian Results: 
+### Bayesian Results
 
-```{r label = "results1", fig.cap = "JAGS Output Confidence Intervals", fig.show = 'hold', warning=FALSE, message=FALSE}
-
+```{r}
 post_summary <- summary(sim)
-credible_ints<-jags.out$BUGSoutput$summary[,c("2.5%","97.5%")]|>as.data.frame()
-
-credible_ints_filtered<-credible_ints|>filter(`2.5%`<=0&`97.5%`>=0)
-
-credible_ints_filtered|>kable()
-```
-
-```{r label = "results2", fig.cap = "JAGS Output Confidence Intervals that did not include 0", fig.show = 'hold', warning=FALSE, message=FALSE}
-
 stats <- post_summary$statistics
 quants <- post_summary$quantiles
 
