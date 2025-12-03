@@ -23,13 +23,13 @@ The primary research question is whether the probability of a good discharge out
 
 # Exploratory Data Analysis
 
-The dataset contains 1,752 patient encounters with information on demographics, arrival mode (EMS vs. car), pre-hospital notification status, treatment characteristics, complications, and discharge disposition. Several variables exhibit substantial missingness, most notably Age (46%), PreHospNotify (12%), EMSvsCar (5%), Race2 (5%), and the outcome variable (3%) (Figure \@ref(fig:eda1)).
+The dataset contains 1,752 patient encounters with information on demographics, arrival mode (EMS vs. car), pre-hospital notification status, treatment characteristics, complications, and discharge disposition. Several variables exhibit substantial missingness, most notably Age (46%), PreHospNotify (12%), EMSvsCar (5%), Race2 (5%), and the outcome variable (3%) (@fig-eda1).
 
-To characterize the missingness mechanism, we examined its distribution across key dimensions. Missingness was not uniform across sites (Figure \@ref(fig:eda2)); for example, Site 170 reported no Age values, and other variables also showed site-specific gaps, suggesting operational or reporting differences. Missingness also varied over time (Figure \@ref(fig:eda3)). Age and PreHospNotify were heavily missing in the early baseline period (Y1Q1) and improved in later quarters, consistent with early implementation and documentation challenges. Missingness further differed by outcome level (Figure \@ref(fig:eda4)), particularly for Age and PreHospNotify, indicating that the probability of being missing relates to other observed variables. Together, these patterns rule out a Missing Completely at Random (MCAR) mechanism. Because the missingness is unlikely to depend on the unobserved values themselves, we proceeded under a Missing at Random (MAR) assumption.
+To characterize the missingness mechanism, we examined its distribution across key dimensions. Missingness was not uniform across sites (@fig-eda2); for example, Site 170 reported no Age values, and other variables also showed site-specific gaps, suggesting operational or reporting differences. Missingness also varied over time (@fig-eda3). Age and PreHospNotify were heavily missing in the early baseline period (Y1Q1) and improved in later quarters, consistent with early implementation and documentation challenges. Missingness further differed by outcome level (@fig-eda4), particularly for Age and PreHospNotify, indicating that the probability of being missing relates to other observed variables. Together, these patterns rule out a Missing Completely at Random (MCAR) mechanism. Because the missingness is unlikely to depend on the unobserved values themselves, we proceeded under a Missing at Random (MAR) assumption.
 
-We also explored variation in demographic and clinical characteristics across sites and their relationships with discharge outcomes. Age distributions differed across centers, with some sites treating more older patients (Figure \@ref(fig:eda5)), and racial composition also varied, with certain hospitals serving predominantly Caucasian patients and others having higher proportions of African American or Other race groups (Figure \@ref(fig:eda6)). On the other hand, gender, pre-hospital notification, and arrival mode were relatively consistent across sites.
+We also explored variation in demographic and clinical characteristics across sites and their relationships with discharge outcomes. Age distributions differed across centers, with some sites treating more older patients (@fig-eda5), and racial composition also varied, with certain hospitals serving predominantly Caucasian patients and others having higher proportions of African American or Other race groups (@fig-eda6). On the other hand, gender, pre-hospital notification, and arrival mode were relatively consistent across sites.
 
-Observed associations with the outcome were clinically consistent. Patients with TPA or thrombectomy complications had much lower probabilities of home/rehab discharge; EMS arrival (a proxy for greater stroke severity) was also associated with worse outcomes, while TPA treatment corresponded to improved discharge disposition (Figure \@ref(fig:eda7)). Older age, female gender, and African American/Other race groups showed lower rates of favorable discharge (Figure \@ref(fig:eda8)). When outcomes were plotted over time, several sites showed modest improvement from baseline to the end of the study period, whereas others exhibited fluctuations or even declining trends (Figure \@ref(fig:eda9)). These observations underscored the need for statistical modeling that accounts for site heterogeneity, temporal trends, and the non-random missingness structure identified in the EDA.
+Observed associations with the outcome were clinically consistent. Patients with TPA or thrombectomy complications had much lower probabilities of home/rehab discharge; EMS arrival (a proxy for greater stroke severity) was also associated with worse outcomes, while TPA treatment corresponded to improved discharge disposition (@fig-eda7). Older age, female gender, and African American/Other race groups showed lower rates of favorable discharge (@fig-eda8). When outcomes were plotted over time, several sites showed modest improvement from baseline to the end of the study period, whereas others exhibited fluctuations or even declining trends (@fig-eda9). These observations underscored the need for statistical modeling that accounts for site heterogeneity, temporal trends, and the non-random missingness structure identified in the EDA.
 
 # Model Rationale, Evaluation, and Results
 
@@ -47,7 +47,7 @@ $$
 \end{aligned}
 $$
 
-We fit the logistic mixed-effects model using the `glmer` function from the `lme4` package, with the bobyqa optimizer to improve convergence. The imputations were highly stable across iterations. We examined the binned residual plots for all 20 imputations and found no substantial systematic deviations or concerning residual patterns. For illustration, we present the plot from imputation 1 (Figure \@ref(fig:freq1)). To evaluate predictive performance, we computed the mean AUC across all 20 imputed models, getting an average of 0.743 (Table 2). We also present the ROC curve for imputation 1 (Figure \@ref(fig:freq2)), which indicates a model with high sensitivity but relatively weaker specificity, so the model identifies good outcomes more reliably than poor ones.
+We fit the logistic mixed-effects model using the `glmer` function from the `lme4` package, with the bobyqa optimizer to improve convergence. The imputations were highly stable across iterations. We examined the binned residual plots for all 20 imputations and found no substantial systematic deviations or concerning residual patterns. For illustration, we present the plot from imputation 1 (@fig-freq1). To evaluate predictive performance, we computed the mean AUC across all 20 imputed models, getting an average of 0.743 (Table 2). We also present the ROC curve for imputation 1 (@fig-freq2), which indicates a model with high sensitivity but relatively weaker specificity, so the model identifies good outcomes more reliably than poor ones.
 
 From the pooled regression results (Table 1), older age was associated with substantially lower odds of a good outcome (β = –0.041, p \< 0.001). EMS arrival, thrombectomy treatment, TPA complications, and thrombectomy complications also decreased the odds of home or rehab discharge, likely reflecting greater underlying stroke severity among these patients. In this model, age was assumed to have a linear effect, although nonlinearity is plausible; allowing flexible age terms or incorporating age × treatment interactions may help clarify differential treatment responses across age groups. Female gender and African American race were also associated with lower odds of home/rehab discharge. However, TPA treatment significantly increased the odds of a good outcome (β = 0.570, p \< 0.001).
 
@@ -102,20 +102,29 @@ x <- x |>
 
 ## Missing Data Analysis
 
-```{r label = "eda1", fig.cap = "Missing Data", fig.show = 'hold'}
+```{r}
+#| label: fig-eda1
+#| fig-cap: "Missing Data"
+
 x |>
   select(where(~ any(is.na(.)))) |>
   vis_miss()
 ```
 
-```{r label = "eda2", fig.cap = "Missing Data by Site", fig.show = 'hold'}
+```{r}
+#| label: fig-eda2
+#| fig-cap: "Missing Data by Site"
+
 x |>
   select(-Time2) |>
   gg_miss_var(facet = siteID) +
   labs(title = "Missing Data by Variable and Site")
 ```
 
-```{r label = "eda3", fig.cap = "Missing Heatmap by Quarter by Variable", fig.show = 'hold'}
+```{r}
+#| label: fig-eda3
+#| fig-cap: "Missing Heatmap by Quarter by Variable"
+
 vars_with_missing <- c("Age", "Race2", "EMSvsCar", "PreHospNotify", "homeOrRehab")
 
 x |>
@@ -144,13 +153,19 @@ x |>
   scale_y_discrete(labels = ~ gsub("_miss", "", .x))
 ```
 
-```{r label = "eda4", fig.cap = "Missingness by outcome", fig.show = 'hold'}
+```{r}
+#| label: fig-eda4
+#| fig-cap: "Missingness by outcome"
+
 gg_miss_fct(x,fct=homeOrRehab)
 ```
 
 ## Covariates & Associations
 
-```{r label = "eda5", echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Age Distribution by Site 1-9", fig.show = 'hold'}
+```{r}
+#| label: fig-eda5
+#| fig-cap: "Age Distribution by Site 1-9"
+
 ggplot(x, aes(x = Age)) +
   geom_histogram(bins = 20) +
   facet_wrap(~ siteID) +
@@ -158,7 +173,9 @@ ggplot(x, aes(x = Age)) +
   theme_minimal()
 ```
 
-```{r label = "eda6", echo = FALSE, warning = FALSE, message = FALSE, fig.cap = "Distribution by Site", fig.show = 'hold'}
+```{r}
+#| label: fig-eda6
+#| fig-cap: "Demographic Distribution by Site"
 
 p7 <- x |>
   group_by(siteID, Gender) |>
@@ -201,7 +218,10 @@ p10 <- x |>
 (p7 + p8) / (p9 + p10)
 ```
 
-```{r label = "eda7", fig.cap = "Patient discharge outcomes by treatment and pre-hospital factors", fig.show = 'hold'}
+```{r}
+#| label: fig-eda7
+#| fig-cap: "Patient discharge outcomes by treatment and pre-hospital factors"
+
 p1 <- ggplot(x, aes(x = hadTPA, fill = homeOrRehab)) +
   geom_bar(position = "fill") +
   labs(title = "By TPA Treatment", y = "Proportion") +
@@ -239,7 +259,12 @@ p6 <- ggplot(x, aes(x = tpaComplic, fill = homeOrRehab)) +
   )
 ```
 
-```{r label = "eda8", fig.cap = "Patient discharge outcomes by demographic factors", fig.show = 'hold', fig.width=6, fig.height=6}
+```{r}
+#| label: fig-eda8
+#| fig-cap: "Patient discharge outcomes by demographic factors"
+#| fig-width: 6
+#| fig-height: 6
+
 x$AgeGroup <- cut(
   x$Age,
   breaks = c(-Inf, 20, 40, 60, 80, Inf),
@@ -277,7 +302,10 @@ p_age / (p5+p6) +
   theme(legend.position = "right")
 ```
 
-```{r label = "eda9", fig.cap = "Outcomes change over time", fig.show = 'hold'}
+```{r}
+#| label: fig-eda9
+#| fig-cap: "Outcomes change over time"
+
 x |>
   group_by(Time2, siteID) |>
   summarise(
@@ -413,7 +441,8 @@ pooled_results <- data.frame(
   p.value   = p_val
 )
 
-kable(pooled_results, digits = 3, row.names = FALSE)
+kable(pooled_results, digits = 3, row.names = FALSE,
+      caption = "Pooled Summary for Frequentist Model")
 ```
 
 ```{r}
@@ -426,10 +455,14 @@ auc_summary <- data.frame(
   Value  = c(mean(unlist(auc_list)), sd(unlist(auc_list)))
 )
 
-kable(auc_summary, digits = 3, row.names = FALSE)
+kable(auc_summary, digits = 3, row.names = FALSE,
+      caption = "Mean AUC and SD Across 20 Imputations")
 ```
 
-```{r label = "freq1", fig.cap = "Binned Residual Plot for Imputation 1", fig.show = 'hold'}
+```{r}
+#| label: fig-freq1
+#| fig-cap: "Binned Residual Plot for Imputation 1"
+
 m1 <- models$analyses[[1]]
 p1 <- predict(m1, type = "response")
 y <- ifelse(m1@frame$homeOrRehab == "TRUE", 1, 0)
@@ -447,7 +480,10 @@ binnedplot(
 )
 ```
 
-```{r label = "freq2", fig.cap = "Outcomes change over time", fig.show = 'hold'}
+```{r}
+#| label: fig-freq2
+#| fig-cap: "ROC plot"
+
 roc_obj <- roc(y, p1)
 
 roc_df <- data.frame(
