@@ -57,6 +57,12 @@ The estimated time-period effects of the program were modest. The middle period 
 
 ### **Rationale and Implementation**
 
+For the Bayesian analysis, we first specified a likelihood for the outcome variable, homeOrRehab, which is binary. We modeled $\text{homeOrRehab}_i$ as Bernoulli with a logit link, and let the log-odds depend on site (9 centers), time (8 quarterly periods), Age, Gender, Race, Transport mode (EMS vs. car), Pre-hospital notification, TPA, Thrombectomy, and their complications. We experimented with alternative forms for age (log(age), age-squared, and centered age), but these did not improve fit or convergence, so we retained the linear age term. We kept all 8 quarterly time periods because we wanted the Bayesian model to capture quarter-by-quarter variation rather than collapsing the timeline. We also experimented with treating site as a random effect, but this specification did not noticeably improve convergence or model fit, so we used the simpler fixed-effects structure.
+
+Next, we built submodels for the variables with missing data: Race, Transport (EMS vs. car), Pre-hospital notification, and Age. Race has three categories, so we used a multinomial model with site-specific probabilities and Dirichlet priors (α = 0.5). Transport was modeled with a logistic regression that included site and four clinical variables (TPA, Thrombectomy, and their complications). For Pre-hospital notification, we ensured that notification is only possible for EMS arrivals by defining the notification probability as a logistic model for EMS patients (depending on site, race, and time) multiplied by an indicator for EMS transport. Finally, we modeled Age with a normal distribution whose mean varies by site, race, and time. We selected the linear predictors in each missing-data model based on regressions of the missingness indicators and our reasoning about which variables were likely to influence each missingness pattern.
+
+We assigned weakly informative priors to all regression coefficients, specifying Normal distributions with mean 0 and precision 0.001. For the Age variance, we placed a Gamma(0.001, 0.001) prior on the precision parameter. The model was estimated in JAGS using four chains, each run for 50,000 iterations with a burn-in of 10,000.
+
 ### **Evaluation**
 
 ### Results
