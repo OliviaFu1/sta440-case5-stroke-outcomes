@@ -78,6 +78,8 @@ library(tidyr)
 library(knitr)
 library(patchwork)
 library(lme4)
+library(pROC)
+
 ```
 
 # EDA
@@ -354,7 +356,7 @@ models <- with(
 ```
 
 ```{r}
-est_list  <- lapply(models$analyses, fixef)      # length m, each a named numeric vector
+est_list  <- lapply(models$analyses, fixef)
 vcov_list <- lapply(models$analyses, vcov)
 m <- length(est_list)
 coef_names <- names(est_list[[1]])
@@ -367,19 +369,19 @@ SEmat <- sapply(models$analyses, function(mdl) sqrt(diag(vcov(mdl)[coef_names, c
 SEmat <- as.matrix(SEmat)
 rownames(SEmat) <- coef_names
 
-# 1. Pooled estimate
+# pooled estimate
 Q_bar <- rowMeans(Qmat)
 
-# 2. Within-imputation variance (mean of SE^2)
+# within-imputation variance (mean of SE^2)
 U_bar <- rowMeans(SEmat^2)
 
-# 3. Between-imputation variance
+# between-imputation variance
 B <- apply(Qmat, 1, var)
 
-# 4. Total variance
+# total variance
 T_var <- U_bar + (1 + 1/m) * B
 
-# 5. Pooled standard error
+# pooled standard error
 se_pooled <- sqrt(T_var)
 
 z_val <- Q_bar / se_pooled
@@ -397,30 +399,26 @@ kable(pooled_results, digits = 3, row.names = FALSE)
 ```
 
 ```{r}
-full_x$resid <- residuals(model_mixed, type = "pearson")
-full_x$fitted <- fitted(model_mixed)
+pred_list <- lapply(models$analyses, function(m) predict(m, type="response"))
+y <- models$analyses[[1]]@frame$homeOrRehab
 
-ggplot(full_x, aes(x = fitted, y = resid)) +
-  geom_point(alpha = 0.6) +
-  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
-  labs(title = "Pearson Residuals vs Fitted Values",
-       x = "Fitted Values",
-       y = "Pearson Residuals") +
-  theme_minimal()
+auc_list <- lapply(pred_list, function(p) roc(y, p)$auc)
+auc_summary <- data.frame(
+  Metric = c("Mean AUC", "SD of AUC"),
+  Value  = c(mean(unlist(auc_list)), sd(unlist(auc_list)))
+)
 
-library(arm)
-binnedplot(fitted(model_mixed), residuals(model_mixed, type = "pearson"),
-           xlab = "Fitted probabilities",
-           ylab = "Average Pearson residuals",
-           main = "Binned Residual Plot")
+kable(auc_summary, digits = 3, row.names = FALSE)
 ```
 
 ```{r}
-full_x$pred_prob <- predict(model_mixed, type = "response")
-y_true <- full_x$homeOrRehab
-
 library(pROC)
 library(ggplot2)
+
+m1 <- models$analyses[[1]]
+p1 <- predict(m1, type = "response")
+y <- m1@frame$homeOrRehab
+roc_obj <- roc(y, p1)
 
 roc_df <- data.frame(
   tpr = roc_obj$sensitivities,
@@ -430,23 +428,11 @@ roc_df <- data.frame(
 ggplot(roc_df, aes(x = fpr, y = tpr)) +
   geom_line(color = "blue", size = 1.2) +
   geom_abline(linetype = "dashed") +
-  coord_fixed(xlim = c(0,1), ylim = c(0,1)) +  # square
-  labs(x = "False Positive Rate (1 - Specificity)",
-       y = "True Positive Rate (Sensitivity)",
-       title = "ROC Curve") +
+  coord_fixed(xlim = c(0,1), ylim = c(0,1)) +
+  labs(
+    x = "False Positive Rate (1 - Specificity)",
+    y = "True Positive Rate (Sensitivity)",
+    title = paste("ROC Curve (Imputation 1) | AUC =", round(roc_obj$auc, 3))
+  ) +
   theme_bw(base_size = 14)
-```
-
-```{r}
-library(caret)
-
-threshold <- 0.5
-full_x$pred_class <- ifelse(full_x$pred_prob > threshold, 1, 0)
-full_x$homeOrRehab <- ifelse(full_x$homeOrRehab, 1, 0)
-
-confusionMatrix(
-  factor(full_x$pred_class),
-  factor(full_x$homeOrRehab),
-  positive = "1"
-)
 ```
