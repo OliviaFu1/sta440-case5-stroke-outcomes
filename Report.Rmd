@@ -35,17 +35,21 @@ Observed associations with the outcome were clinically consistent. Patients with
 
 ## Frequentist Model
 
-Given our goals, identifying factors associated with good discharge outcomes and assessing whether outcomes improved over time, we used a regression framework that adjusts for demographic, clinical, and treatment variables. Because patients were clustered within nine stroke centers and our EDA showed meaningful site-level differences, we first fit a mixed-effects logistic regression with a random intercept for site prior to moving to the Bayesian model. To capture broader temporal trends and reduce quarter-to-quarter noise, we collapsed the study timeline into three periods (baseline, middle, end). Age was centered for numerical stability. After completing multiple imputation, we fit this mixed-effects logistic regression on one completed dataset to obtain initial frequentist estimates.
+We used multilevel multiple imputation by chained equations (MICE) to address missing data under the MAR assumption. Age was imputed using the `"2l.pan"` method, which specifies a two-level normal model with a random intercept for site, appropriate for continuous variables exhibiting site-level clustering. Race2 was imputed using `"polyreg"` to model its multinomial categorical structure. EMSvsCar, PreHospNotify, and homeOrRehab were imputed using `"logreg"`, consistent with their binary outcomes. We generated 20 imputed datasets in total.
+
+Given our goals of identifying factors associated with good discharge outcomes and evaluating whether outcomes improved over time, we used a regression framework that adjusts for demographic, clinical, and treatment variables. Because patients were clustered within nine stroke centers and the EDA indicated substantial site-level heterogeneity, we fit a mixed-effects logistic regression with a random intercept for site. To capture broader temporal trends and reduce quarter-to-quarter variability, we collapsed the study timeline into three periods (baseline, middle, end). Age was centered for numerical stability. We fit this model to each of the 20 imputed datasets and then pooled the results to account for both the variation within each imputation and the uncertainty across imputations.
 
 $$
-logit(P(homeOrRehab=1))=β_0​+ β_{\text{EMS}}​+β_{\text{PreHospNotify}}​+β_{\text{TPA}}+β_{\text{Thrombectomy}}+β_{\text{Complications}}+β_{\text{Age}}​+β_{\text{Period}}+β_{\text{Gender}}+β_{\text{Race}}+usiteID​.
+$$\begin{aligned}
+\text{logit}\{P(\text{homeOrRehab}=1)\}&= \beta_0  + \beta_{\text{EMS}}  + \beta_{\text{PreHospNotify}}  + \beta_{\text{TPA}}  + \beta_{\text{Thrombectomy}}  + \beta_{\text{TPAComp}}  + \beta_{\text{ThrombComp}} \\&\quad + \beta_{\text{Age}}  + \beta_{\text{Period}}  + \beta_{\text{Gender}}  + \beta_{\text{Race}}  + u_{\text{siteID}}
+\end{aligned}$$
 $$
 
-Model convergence was successful using the bobyqa optimizer. Residual diagnostics, including Pearson residual vs. fitted plots and binned residual plots, indicated no major systematic deviations, though typical heteroskedasticity patterns were present due to the binary outcome. Classification performance was moderate: overall accuracy was 77%, with high sensitivity (0.92) but lower specificity (0.41), reflecting that the model predicts good outcomes more reliably than poor ones.
+We fit the logistic mixed-effects model using the `glmer` function from the `lme4` package, with the bobyqa optimizer to improve convergence. The imputations were highly stable across iterations. We examined the binned residual plots for all 20 imputations and found no substantial systematic deviations or concerning residual patterns. For illustration, we present the plot from imputation 1 (Figure \@ref(fig:freq1)). To evaluate predictive performance, we computed the mean AUC across all 20 imputed models, getting an average of 0.743 (Table 2). We also present the ROC curve for imputation 1 (Figure \@ref(fig:freq2)), which indicates a model with high sensitivity but relatively weaker specificity, so the model identifies good outcomes more reliably than poor ones.
 
-Parameter estimates aligned with clinical expectations. Older age significantly decreased the odds of a good outcome (β = −0.068, p \< 0.001), as did thrombectomy treatment, TPA complications, and thrombectomy complications, likely reflecting the underlying stroke severity of these patients. The effect of age is strong and approximately linear, though mild curvature suggests that a nonlinear term or spline could improve fit. Treatment effects likely vary with age, but current models do not include interaction terms; exploring age × treatment interactions may clarify differential treatment responses across age groups. Female gender and African American race were also associated with lower odds of home/rehab discharge. However, TPA treatment significantly increased the odds of a good outcome (β = 0.467, p = 0.005). Arrival by EMS was associated with worse outcomes relative to car arrival, again consistent with EMS transporting more severe cases.
+From the pooled regression results (Table 1), older age was associated with substantially lower odds of a good outcome (β = –0.041, p \< 0.001). EMS arrival, thrombectomy treatment, TPA complications, and thrombectomy complications also decreased the odds of home or rehab discharge, likely reflecting greater underlying stroke severity among these patients. In this model, age was assumed to have a linear effect, although nonlinearity is plausible; allowing flexible age terms or incorporating age × treatment interactions may help clarify differential treatment responses across age groups. Female gender and African American race were also associated with lower odds of home/rehab discharge. However, TPA treatment significantly increased the odds of a good outcome (β = 0.570, p \< 0.001).
 
-The program's time period effect was modest. The middle period did not differ significantly from baseline, while the end period showed a positive but borderline significant increase in good outcomes (β = 0.285, p = 0.099). This suggests a possible improvement in outcomes as the program reached full implementation, though the evidence is not strong at the frequentist 5% significance level.
+The estimated time-period effects of the program were modest. The middle period did not differ meaningfully from the baseline, while the end period showed a positive, though not conventionally significant, association with improved outcomes (β = 0.240, p = 0.175). This suggests a possible improvement in outcomes as the program reached full implementation, though the evidence is not strong at the frequentist 5% significance level, potentially due to site-level variability and the influence of the COVID period.
 
 ## **Bayesian Model**
 
@@ -74,7 +78,6 @@ library(knitr)
 library(patchwork)
 library(lme4)
 library(pROC)
-
 ```
 
 # EDA
@@ -418,13 +421,25 @@ auc_summary <- data.frame(
 kable(auc_summary, digits = 3, row.names = FALSE)
 ```
 
-```{r}
-library(pROC)
-library(ggplot2)
-
+```{r label = "freq1", fig.cap = "Binned Residual Plot for Imputation 1", fig.show = 'hold'}
 m1 <- models$analyses[[1]]
 p1 <- predict(m1, type = "response")
-y <- m1@frame$homeOrRehab
+y <- ifelse(m1@frame$homeOrRehab == "TRUE", 1, 0)
+
+pearson_res <- (y - p1) / sqrt(p1 * (1 - p1))
+
+library(arm)
+
+binnedplot(
+  x     = p1,
+  y     = pearson_res,
+  xlab = "Fitted Probability",
+  ylab = "Pearson Residual",
+  main = "Binned Residual Plot (Imputation 1)"
+)
+```
+
+```{r label = "freq2", fig.cap = "Outcomes change over time", fig.show = 'hold'}
 roc_obj <- roc(y, p1)
 
 roc_df <- data.frame(
