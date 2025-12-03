@@ -98,10 +98,6 @@ library(R2jags)
 library(coda)
 ```
 
-# EDA
-
-## Missing values
-
 ```{r}
 # Missing -> NA for Race2
 x <- x |>
@@ -109,8 +105,6 @@ x <- x |>
     Race2 = na_if(Race2, "Missing")
   )
 ```
-
-## Missing Data Analysis
 
 ```{r}
 #| label: fig-eda1
@@ -169,8 +163,6 @@ x |>
 
 gg_miss_fct(x,fct=homeOrRehab)
 ```
-
-## Covariates & Associations
 
 ```{r}
 #| label: fig-eda5
@@ -338,8 +330,6 @@ x |>
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
-
-# Frequentist model
 
 ```{r}
 # MICE
@@ -513,8 +503,6 @@ ggplot(roc_df, aes(x = fpr, y = tpr)) +
   theme_bw()
 ```
 
-### Bayesian Model:
-
 ```{r}
 load("./strokeStudy.RData")
 ```
@@ -607,8 +595,6 @@ mcmc.pars <- list(iter = 10000, burn = 2000, nchain=4, thin=1)
 ```{r}
 load("bayes_model_run_final.RData")
 ```
-
-### Bayesian Evaluation:
 
 ```{r}
 sim <- as.mcmc(jags.out)
@@ -726,8 +712,6 @@ params_to_plot <- c(
 m_sub <- m_combined[, params_to_plot]
 autocorr.plot(m_sub, lag.max = 40)
 ```
-
-### Bayesian Results
 
 ```{r}
 post_summary <- summary(sim)
