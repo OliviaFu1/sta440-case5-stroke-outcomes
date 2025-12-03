@@ -74,6 +74,10 @@ Gelman–Rubin $\hat{R}$ values for all fixed-effect outcome-model parameters we
 We compared posterior densities to their corresponding diffuse Normal priors (@fig-bay3). For the main clinical coefficients, the posterior distributions were substantially narrower, showing that the data were informative (@fig-bay3). In contrast, gender, race, site, and time coefficients retained wide posteriors, indicating weak identifiability and imprecision, which is consistent with the high variability in the underlying data (@fig-bay3).
 
 ### Results
+When evaluating the relative impacts of effects, we looked at the 95% confidence intervals and mean values of the posterior distributions. We found that the effects of age, whether a patient arrived by EMS, having a thrombectomy, and having treatment complications all had confidence intervals not containing 0 (negative values only) and had negative mean values for the posterior distribution, showing us that these factors are associated with worse outcomes for patients. On the other hand, the effect of TPA has a non-negative confidence interval and a positive mean posterior value, hinting that it is the only factor associated with better patient outcomes. 
+
+Based on the posterior distributions of site and time as effects, which did contain 0 in the confidence intervals for the posterior, we find that there is little evidence of strong or time effects. 
+
 
 # Limitations, Future Directions, and Conclusion
 
