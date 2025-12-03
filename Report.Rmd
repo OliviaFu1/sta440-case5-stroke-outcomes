@@ -65,9 +65,9 @@ We assigned weakly informative priors to all regression coefficients, specifying
 
 ### **Evaluation**
 
-We used standard Bayesian diagnostics for assesment, including trace plots, effective sample sizes (ESS), autocorrelation functions (ACF), and Gelman–Rubin $\hat{R}$ statistics. Trace plots for the primary regression coefficients (age, EMS transport, thrombectomy, tPA treatment, and treatment-related complications) showed tight, overlapping chains with no visible drift or nonstationarity, indicating good mixing. One exception was the age coefficient ($\beta{age}$), which showed slower mixing and a lower ESS relative to other parameters (@fig-bay1). We explored several transformations (log-age, age\^2, centering) to improve mixing, but all versions yielded comparable posterior distributions. Despite the lower ESS, $\beta{age}$ remained well-identified with a narrow posterior, so its interpretation is reliable.
+We used standard Bayesian diagnostics for assesment, including trace plots, effective sample sizes (ESS), autocorrelation functions (ACF), and Gelman–Rubin $\hat{R}$ statistics. Trace plots for the primary regression coefficients (age, EMS transport, thrombectomy, tPA treatment, and treatment-related complications) showed tight, overlapping chains with no visible drift or nonstationarity, indicating good mixing. One exception was the age coefficient ($\beta{age}$), which showed slower mixing and a lower ESS relative to other parameters (Table 3). We explored several transformations (log-age, age\^2, centering) to improve mixing, but all versions yielded comparable posterior distributions. Despite the lower ESS, $\beta{age}$ remained well-identified with a narrow posterior, so its interpretation is reliable.
 
-Effective sample sizes for all other fixed-effect parameters were extremely high (often \>150,000), showing good chain independence (@fig-bay1). Autocorrelation diagnostics further supported convergence as the majority of coefficients displayed very rapid decay, indicating weak dependence across MCMC iterations (@fig-bay4). Again, $\beta{age}$ showed modestly slower decay but still stabilized sufficiently for inference (@fig-bay4).
+Effective sample sizes for all other fixed-effect parameters were extremely high (often \>150,000), showing good chain independence (Table 3). Autocorrelation diagnostics further supported convergence as the majority of coefficients displayed very rapid decay, indicating weak dependence across MCMC iterations (@fig-bay4). Again, $\beta{age}$ showed modestly slower decay but still stabilized sufficiently for inference (@fig-bay4).
 
 Gelman–Rubin $\hat{R}$ values for all fixed-effect outcome-model parameters were approximately 1.00, with upper bounds below 1.03, meeting the conventional convergence threshold (@fig-bay2). A few parameters belonging to the missing-data submodels (some delta_time and site_gamma effects) showed higher $\hat{R}$ values and wider uncertainty (@fig-bay2). This was expected due to limited identifiability of missingness mechanisms and does not undermine inference for the outcome model.
 
@@ -613,9 +613,6 @@ load("bayes_model_run_final.RData")
 ### Bayesian Evaluation:
 
 ```{r}
-#| label: fig-bay1
-#| fig-cap: "ESS for Bayesian Parameters"
-
 sim <- as.mcmc(jags.out)
 ess <- effectiveSize(sim)
 
@@ -626,13 +623,7 @@ df_ess <- data.frame(
 
 df_beta <- df_ess[grepl("^beta", df_ess$parameter), ]
 
-ggplot(df_beta, aes(x = reorder(parameter, ESS), y = ESS)) +
-  geom_col() +
-  coord_flip() +
-  labs(title = "Effective Sample Size by Parameter",
-       x = "Parameter",
-       y = "ESS") +
-  theme_minimal()
+kable(df_beta, caption = "ESS for Beta Parameters")
 ```
 
 ```{r}
@@ -761,5 +752,6 @@ beta_table <- data.frame(
 
 beta_sig <- beta_table[ci_exclude_zero, ]
 
-kable(beta_sig, digits = 3, row.names = FALSE)
+kable(beta_sig, digits = 3, row.names = FALSE,
+      caption = "Posterior Results for Bayesian Model")
 ```
