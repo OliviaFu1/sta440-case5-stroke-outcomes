@@ -1,0 +1,501 @@
+---
+title: "case5_code"
+format: html
+editor: visual
+---
+
+```{r}
+load("./strokeStudy.RData")
+```
+
+```{r}
+library(ggplot2)
+library(naniar)
+library(dplyr)
+library(tidyr)
+library(knitr)
+library(patchwork)
+```
+
+
+
+# EDA
+
+## Missing values
+
+
+
+```{r}
+# Missing -> NA for Race2
+x <- x %>%
+  mutate(
+    Race2 = na_if(Race2, "Missing")
+  )
+```
+
+```{r}
+x |>
+  dplyr::select(-Time2) |>
+  gg_miss_var(facet = siteID) +
+  labs(title = "Missing Data by Variable and Site")
+```
+
+```{r}
+missing_count <- x |>
+  dplyr::select(-Time2, -siteID) |>
+  summarise(across(
+    everything(),
+    ~ sum(is.na(.))
+  )) |>
+  pivot_longer(everything(),
+               names_to = "Variable",
+               values_to = "n_missing") %>%
+  arrange(desc(n_missing))
+
+kable(missing_count)
+```
+
+```{r}
+vars_to_check <- c("Age", "PreHospNotify", "EMSvsCar", "homeOrRehab", "Race2")
+
+missing_by_time <- x |>
+  group_by(Time2) |>
+  summarise(across(all_of(vars_to_check), ~sum(is.na(.)))) |>
+  pivot_longer(-Time2, names_to = "Variable", values_to = "n_missing")
+
+ggplot(missing_by_time, aes(x = Time2, y = n_missing, group = Variable, color = Variable)) +
+  geom_line(size = 1) +
+  geom_point(size = 3) +
+  labs(title = "Missing Value Counts by Quarter",
+       x = "Time (Quarter)",
+       y = "Number of Missing Values",
+       color = "Variable") +
+  theme_minimal(base_size = 14) +
+  scale_color_brewer(palette = "Set2")
+```
+
+
+
+## Missing Data Analysis
+
+
+
+```{r}
+library(naniar)
+vis_miss(x)
+
+gg_miss_var(x)
+gg_miss_fct(x,fct=homeOrRehab)
+
+gg_miss_fct(x |> dplyr::select(where(~ any(is.na(.)))),fct=homeOrRehab)
+
+x_subset<-x
+x_subset$missingvals<-is.na(x)
+#summary(glm(missingvals~homeOrRehab,data=x_subset))
+
+#checking for mcar
+complete_subset<- x[complete.cases(x),]
+incomplete_subset<-x[!complete.cases(x),]
+
+summary(complete_subset)
+summary(incomplete_subset)
+
+ggplot(x,aes(x=homeOrRehab,fill=complete.cases(x)))+geom_density(alpha=0.5) #not mcar, must be mnar or mar
+```
+
+```{r}
+library(naniar)
+library(ggplot2)
+x %>%
+  dplyr::select(where(~ any(is.na(.)))) %>%  
+  vis_miss()
+
+gg_miss_upset(x)
+```
+
+```{r}
+library(tidyr)
+
+vars_with_missing <- c("Age", "Race2", "EMSvsCar", "PreHospNotify", "homeOrRehab")
+
+x |>
+  mutate(across(all_of(vars_with_missing),
+                ~ as.integer(is.na(.)),
+                .names = "{.col}_miss")) %>%
+  
+  pivot_longer(
+    cols = ends_with("_miss"),
+    names_to = "Variable",
+    values_to = "Missing"
+  ) %>%
+  
+  group_by(Time2, Variable) %>%
+  summarise(prop_missing = mean(Missing), .groups = "drop") %>%
+  
+  ggplot(aes(x = Time2, y = Variable, fill = prop_missing)) +
+  geom_tile() +
+  scale_fill_viridis_c(option = "plasma", name = "% Miss") +
+  labs(
+    title = "Missingness Heatmap by Quarter",
+    x = "Study Quarter",
+    y = "Variable"
+  ) +
+  theme_minimal() +
+  scale_y_discrete(labels = ~ gsub("_miss", "", .x))
+```
+
+
+
+## Data cleaning after knowing its not MCAR
+
+
+
+```{r}
+library(mice)
+library(miceadds)
+
+# Ensure siteID is an integer factor
+x$siteID <- as.integer(as.factor(x$siteID))
+
+# Ensure binary variables are factors
+binary_vec <- c("EMSvsCar","PreHospNotify","homeOrRehab")
+x[binary_vec] <- lapply(x[binary_vec], function(z) factor(z))
+
+# Ensure Race is factor for polyreg
+x$Race2 <- factor(x$Race2)
+
+# Initialize method vector
+mice_imp <- make.method(x)
+
+# Methods for variables WITH missing data
+mice_imp["Age"]           <- "2l.pan"     # hierarchical continuous
+mice_imp["Race2"]         <- "polyreg"    # multinomial categorical
+mice_imp["EMSvsCar"]      <- "logreg"     # binary
+mice_imp["PreHospNotify"] <- "logreg"     # binary
+mice_imp["homeOrRehab"]   <- "logreg"     # binary
+
+# Predictor matrix
+pred_matrix <- make.predictorMatrix(x)
+
+# Only Age should depend on site (random intercept)
+pred_matrix["Age", "siteID"] <- -2
+```
+
+```{r}
+imp <- mice(
+  x,
+  m = 20,
+  method = mice_imp,
+  predictorMatrix = pred_matrix,
+  cluster = x$siteID,
+  seed = 2025
+)
+
+plot(imp)
+full_x <- complete(imp, action = "long")
+```
+
+
+
+## Covariates & Associations
+
+
+
+```{r}
+ggplot(x, aes(x = Age)) +
+  geom_histogram(bins = 20) +
+  facet_wrap(~ siteID) +
+  labs(title = "Age Distribution by Site", x="Age", y="Count") +
+  theme_minimal()
+
+x |>
+  group_by(siteID, Gender) |>
+  summarise(n = n()) |>
+  ggplot(aes(x = siteID, y = n, fill = Gender)) +
+  geom_bar(stat="identity", position="fill") +
+  labs(title="Gender Distribution by Site", y="Proportion") +
+  theme_minimal()
+
+x |>
+  group_by(siteID, Race2) |>
+  summarise(n = n()) |>
+  ggplot(aes(x = siteID, y = n, fill = Race2)) +
+  geom_bar(stat="identity", position="fill") +
+  labs(title="Gender Distribution by Site", y="Proportion") +
+  theme_minimal()
+```
+
+```{r}
+p1 <- ggplot(x, aes(x = hadTPA, fill = homeOrRehab)) +
+  geom_bar(position = "fill") +
+  labs(title = "By TPA Treatment", y = "Proportion") +
+  theme_minimal()
+
+p2 <- ggplot(x, aes(x = hadThrombectomy, fill = homeOrRehab)) +
+  geom_bar(position = "fill") +
+  labs(title = "By Thrombectomy", y = "Proportion") +
+  theme_minimal()
+
+p3 <- ggplot(x, aes(x = PreHospNotify, fill = homeOrRehab)) +
+  geom_bar(position = "fill") +
+  labs(title = "By Pre-Hospital Notification", y = "Proportion") +
+  theme_minimal()
+
+p4 <- ggplot(x, aes(x = EMSvsCar, fill = homeOrRehab)) +
+  geom_bar(position = "fill") +
+  labs(title = "By Arrival Method", y = "Proportion") +
+  theme_minimal()
+
+p5 <- ggplot(x, aes(x = thrComplic, fill = homeOrRehab)) +
+  geom_bar(position = "fill") +
+  labs(title = "By Thrombectomy \nComplications", y = "Proportion") +
+  theme_minimal()
+
+p6 <- ggplot(x, aes(x = tpaComplic, fill = homeOrRehab)) +
+  geom_bar(position = "fill") +
+  labs(title = "By TPA \nComplications", y = "Proportion") +
+  theme_minimal()
+
+(p1 + p2 + p3) / (p6 + p5 + p4) +
+  plot_layout(guides = "collect") +
+  plot_annotation(
+    title = "Patient Discharge Outcomes by Treatment and Pre-Hospital Factors"
+  )
+```
+
+```{r}
+p5 <- ggplot(x, aes(x = Gender, fill = homeOrRehab)) +
+  geom_bar(position = "fill") +
+  labs(title="Outcome by Gender", y="Proportion") +
+  theme_minimal()
+
+p6 <- ggplot(x, aes(x = Race2, fill = homeOrRehab)) +
+  geom_bar(position = "fill") +
+  labs(title = "Outcome by Race", y = "Proportion") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+(p5+p6) +
+  plot_layout(guides = "collect") +
+  theme(legend.position = "right")
+```
+
+```{r}
+x |>
+  group_by(Time2, siteID) |>
+  summarise(GoodOutcome = mean(homeOrRehab, na.rm = TRUE), .groups = "drop") |>
+  ggplot(aes(x = Time2, y = GoodOutcome, group = siteID)) +  
+  geom_line() +
+  geom_point() +
+  facet_wrap(~siteID) +
+  labs(
+    title = "Proportion of Good Outcomes by Site Over Time",
+    y = "Proportion Discharged to Home/Rehab",
+    x = "Quarter"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+
+# Frequentist model
+
+
+
+```{r}
+full_x <- full_x |>
+  mutate(
+    period = case_when(
+      Time2 %in% c("Y1Q1", "Y1Q2") ~ "baseline",
+      Time2 %in% c("Y1Q3", "Y1Q4", "Y2Q1", "Y2Q2") ~ "middle",
+      Time2 %in% c("Y2Q3", "Y2Q4") ~ "end"
+    ),
+    period = factor(period, levels = c("baseline", "middle", "end"))
+  )
+```
+
+```{r}
+linear_model_missing<-glm(homeOrRehab~., full_x,family=binomial)
+summary(linear_model_missing)
+
+plot(linear_model_missing)
+```
+
+```{r}
+library(lme4)
+library(miceadds)
+
+imp_list <- complete(imp, "all")
+
+imp_list <- lapply(imp_list, \(d) {
+  d %>%
+    mutate(
+      period = case_when(
+        Time2 %in% c("Y1Q1", "Y1Q2") ~ "baseline",
+        Time2 %in% c("Y1Q3", "Y1Q4", "Y2Q1", "Y2Q2") ~ "middle",
+        Time2 %in% c("Y2Q3", "Y2Q4") ~ "end"
+      ),
+      period = factor(period, levels = c("baseline", "middle", "end")),
+      Age_c = Age - mean(Age, na.rm = TRUE)
+    )
+})
+
+models <- lapply(imp_list, \(d) {
+  glmer(
+    homeOrRehab ~ EMSvsCar + PreHospNotify + hadThrombectomy +
+      hadTPA + tpaComplic + thrComplic + Age_c + period + Gender + Race2 +
+      (1 | siteID),
+    data = d,
+    family = binomial,
+    control = glmerControl(
+      optimizer = "bobyqa",
+      optCtrl = list(maxfun = 1e6)
+    )
+  )
+})
+
+sapply(models, function(m) coef(summary(m))[,1])
+```
+
+```{r}
+full_x <- full_x |> 
+  mutate(Age_c = Age - mean(Age)) 
+
+ctrl <- glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e6) ) 
+
+model_mixed <- glmer( 
+  homeOrRehab ~ EMSvsCar + PreHospNotify + hadThrombectomy + 
+    hadTPA + tpaComplic + thrComplic + Age_c + period + Gender + Race2 + 
+    (1 | siteID), 
+  data = full_x, family = binomial, control = ctrl ) 
+
+summary(model_mixed)
+```
+
+```{r}
+full_x$resid <- residuals(model_mixed, type = "pearson")
+full_x$fitted <- fitted(model_mixed)
+
+ggplot(full_x, aes(x = fitted, y = resid)) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "Pearson Residuals vs Fitted Values",
+       x = "Fitted Values",
+       y = "Pearson Residuals") +
+  theme_minimal()
+
+library(arm)
+binnedplot(fitted(model_mixed), residuals(model_mixed, type = "pearson"),
+           xlab = "Fitted probabilities",
+           ylab = "Average Pearson residuals",
+           main = "Binned Residual Plot")
+```
+
+```{r}
+full_x$pred_prob <- predict(model_mixed, type = "response")
+
+race_comp <- full_x |>
+  group_by(Race2) |>
+  summarise(
+    n = n(),
+    observed_pct = mean(homeOrRehab == 1, na.rm = TRUE) * 100,
+    predicted_pct = mean(pred_prob, na.rm = TRUE) * 100
+  )
+
+kable(race_comp, digits = 3)
+```
+
+```{r}
+full_x <- full_x |>
+  mutate(
+    age_group = cut(
+      Age,
+      breaks = c(0, 40, 60, 80, Inf),
+      labels = c("<40", "40–59", "60–79", "80+"),
+      right = FALSE
+    )
+  )
+
+age_comp <- full_x |>
+  group_by(age_group) |>
+  summarise(
+    n = n(),
+    observed_pct = mean(homeOrRehab == 1, na.rm = TRUE) * 100,
+    predicted_pct = mean(pred_prob, na.rm = TRUE) * 100
+  )
+
+kable(age_comp, digits = 3)
+```
+
+```{r}
+library(dplyr)
+
+binary_vars <- c("hadTPA", "hadThrombectomy", "tpaComplic",
+                 "thrComplic", "PreHospNotify", "EMSvsCar")
+
+full_x <- full_x |>
+  mutate(across(all_of(binary_vars), as.factor))
+
+comp_list <- lapply(binary_vars, function(var) {
+  full_x |>
+    group_by(.data[[var]]) |>
+    summarise(
+      n = n(),
+      observed_pct = mean(homeOrRehab == 1, na.rm = TRUE) * 100,
+      predicted_pct = mean(pred_prob, na.rm = TRUE) * 100,
+      .groups = "drop"
+    ) |>
+    mutate(variable = var)
+}) |>
+  bind_rows()
+
+comp_clean <- comp_list |>
+  rowwise() |>
+  mutate(
+    level = first(na.omit(c_across(all_of(binary_vars)))),
+  ) |>
+  ungroup() |>
+  dplyr::select(variable, level, n, observed_pct, predicted_pct)
+
+kable(comp_clean, digits = 3)
+```
+
+```{r}
+full_x$pred_prob <- predict(model_mixed, type = "response")
+y_true <- full_x$homeOrRehab
+
+library(pROC)
+library(ggplot2)
+
+roc_df <- data.frame(
+  tpr = roc_obj$sensitivities,
+  fpr = 1 - roc_obj$specificities
+)
+
+ggplot(roc_df, aes(x = fpr, y = tpr)) +
+  geom_line(color = "blue", size = 1.2) +
+  geom_abline(linetype = "dashed") +
+  coord_fixed(xlim = c(0,1), ylim = c(0,1)) +  # square
+  labs(x = "False Positive Rate (1 - Specificity)",
+       y = "True Positive Rate (Sensitivity)",
+       title = "ROC Curve") +
+  theme_bw(base_size = 14)
+```
+
+```{r}
+library(caret)
+
+threshold <- 0.5
+full_x$pred_class <- ifelse(full_x$pred_prob > threshold, 1, 0)
+full_x$homeOrRehab <- ifelse(full_x$homeOrRehab, 1, 0)
+
+confusionMatrix(
+  factor(full_x$pred_class),
+  factor(full_x$homeOrRehab),
+  positive = "1"
+)
+```
+
