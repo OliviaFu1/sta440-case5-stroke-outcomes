@@ -607,7 +607,7 @@ mcmc.pars <- list(iter = 10000, burn = 2000, nchain=4, thin=1)
 ```
 
 ```{r}
-load("./bayes_model_run_final.RData")
+load("bayes_model_run_final.RData")
 ```
 
 ### Bayesian Evaluation:
