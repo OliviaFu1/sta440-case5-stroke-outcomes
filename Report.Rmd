@@ -102,14 +102,18 @@ x <- x |>
 
 ```{r}
 #| label: fig-eda1
-#| fig-cap: "Missing Data"
+#| fig-cap: "Missingness Pattern Across Key Variables"
 #| fig.height: 6
-#| fig.width: 8
+#| fig.width: 6
 
 x |>
   select(where(~ any(is.na(.)))) |>
   vis_miss() +
-  labs(title = "Missingness Pattern Across Key Variables")
+  labs(title = "Missingness Pattern Across Key Variables") +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+    plot.margin = margin(t = 5, r = 5, b = 5, l = 5)
+  )
 ```
 
 ```{r, fig.height=6, fig.width=8}
@@ -124,7 +128,7 @@ x |>
 
 ```{r}
 #| label: fig-eda3
-#| fig-cap: "Missing Heatmap by Quarter by Variable"
+#| fig-cap: "Missing Heatmap by Quarter"
 
 vars_with_missing <- c("Age", "Race2", "EMSvsCar", "PreHospNotify", "homeOrRehab")
 
@@ -156,7 +160,7 @@ x |>
 
 ```{r}
 #| label: fig-eda4
-#| fig-cap: "Missingness by outcome"
+#| fig-cap: "Missingness by Outcome"
 
 gg_miss_fct(x,fct=homeOrRehab) +
   labs(title = "Missigness by Outcome variable")
@@ -164,7 +168,7 @@ gg_miss_fct(x,fct=homeOrRehab) +
 
 ```{r}
 #| label: fig-eda5
-#| fig-cap: "Age Distribution by Site 1-9"
+#| fig-cap: "Age Distribution by Site"
 
 ggplot(x, aes(x = Age)) +
   geom_histogram(bins = 20) +
@@ -220,7 +224,7 @@ p10 <- x |>
 
 ```{r, fig.height=6, fig.width=8}
 #| label: fig-eda7
-#| fig-cap: "Patient discharge outcomes by treatment and pre-hospital factors"
+#| fig-cap: "Patient Discharge Outcomes by Treatment and Pre-hospital Factors"
 
 p1 <- ggplot(x, aes(x = hadTPA, fill = homeOrRehab)) +
   geom_bar(position = "fill") +
@@ -261,7 +265,7 @@ p6 <- ggplot(x, aes(x = tpaComplic, fill = homeOrRehab)) +
 
 ```{r}
 #| label: fig-eda8
-#| fig-cap: "Patient discharge outcomes by demographic factors"
+#| fig-cap: "Patient Discharge Outcomes by Demographic Factors"
 #| fig-width: 6
 #| fig-height: 6
 
@@ -304,7 +308,7 @@ p_age / (p5+p6) +
 
 ```{r}
 #| label: fig-eda9
-#| fig-cap: "Outcomes change over time"
+#| fig-cap: "Outcomes Change Over Time"
 
 x |>
   group_by(Time2, siteID) |>
@@ -480,7 +484,7 @@ binnedplot(
 
 ```{r}
 #| label: fig-freq2
-#| fig-cap: "ROC plot for Frequentist Model"
+#| fig-cap: "ROC Plot for Frequentist Model"
 
 roc_obj <- roc(y, p1)
 
@@ -666,13 +670,13 @@ ggplot(psrf_beta, aes(x = Point_Est, y = reorder(Parameter, Point_Est))) +
   labs(
     y = "",
     x = expression(hat(R)),
-    title = "Gelman–Rubin Diagnostic for β Parameters"
+    title = "Gelman–Rubin Diagnostic for Beta Parameters"
   )
 ```
 
 ```{r, fig.height=6, fig.width=8}
 #| label: fig-bay3
-#| fig-cap: "Posterior vs. Prior Distributions for the Beta Parameters"
+#| fig-cap: "Posterior vs. Prior Distributions for Beta Parameters"
 
 post <- do.call(rbind, sim)
 
@@ -723,7 +727,7 @@ ggplot(df_long, aes(x = Posterior)) +
 
 ```{r}
 #| label: fig-bay4
-#| fig-cap: "Autocorrelation Plots for the Beta Parameters"
+#| fig-cap: "Autocorrelation Plots for Beta Parameters"
 #| fig-width: 8
 #| fig-height: 6
 
@@ -768,7 +772,7 @@ kable(beta_sig, digits = 3, row.names = FALSE,
 
 ```{r}
 #| label: fig-bay5
-#| fig-cap: "ROC Curve for Bayesian Model"
+#| fig-cap: "ROC Plot for Bayesian Model"
 
 vars <- varnames(sim)
 sim_mat <- do.call(rbind, sim)
