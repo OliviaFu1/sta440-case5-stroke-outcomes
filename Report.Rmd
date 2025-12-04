@@ -53,9 +53,9 @@ We assigned weakly informative priors to all regression coefficients, specifying
 
 ### **Evaluation**
 
-We used standard Bayesian diagnostics for assesment, including trace plots, effective sample sizes (ESS), autocorrelation functions (ACF), and Gelman–Rubin $\hat{R}$ statistics. Trace plots for the primary regression coefficients (age, EMS transport, thrombectomy, tPA treatment, and treatment-related complications) showed tight, overlapping chains with no visible drift, indicating good mixing. The one exception was the age coefficient ($\beta{age}$), which mixed more slowly and had a lower ESS (Table 3). We tested several transformations (log-age, age\^2, centering), but all produced similar posteriors. Despite the reduced ESS, $\beta{age}$ remained well-identified with a narrow posterior, so its interpretation is stable. ESS values for all other fixed-effect parameters were extremely high (often \>150,000), indicating strong chain independence (Table 3). ACF plots supported this: most coefficients showed rapid autocorrelation decay, again with $\beta{age}$ as the only modest outlier, but still acceptable for inference (\@fig-bay4).
+We used standard Bayesian diagnostics for assesment, including trace plots, effective sample sizes (ESS), autocorrelation functions (ACF), and Gelman–Rubin $\hat{R}$ statistics. Trace plots for the primary regression coefficients (age, EMS transport, thrombectomy, tPA treatment, and treatment-related complications) showed tight, overlapping chains with no visible drift, indicating good mixing. The one exception was the age coefficient ($\beta{age}$), which mixed more slowly and had a lower ESS (Table 3). We tested several transformations (log-age, age\^2, centering), but all produced similar posteriors. Despite the reduced ESS, $\beta{age}$ remained well-identified with a narrow posterior, so its interpretation is stable. ESS values for all other fixed-effect parameters were extremely high (often \>150,000), indicating strong chain independence (Table 3). ACF plots supported this: most coefficients showed rapid autocorrelation decay, again with $\beta{age}$ as the only modest outlier, but still acceptable for inference (@fig-bay4).
 
-Gelman–Rubin $\hat{R}$ values for the outcome-model parameters were all approximately 1.00, with upper bounds below 1.03 (\@fig-bay2). Some parameters in the missing-data submodels (some delta_time and site_gamma effects) had higher $\hat{R}$ values and greater uncertainty, which is expected given weak identifiability of missingness mechanisms and does not affect inference for the outcome model. Posterior–prior comparisons (\@fig-bay3) showed that the main clinical coefficients have posteriors substantially narrower than the diffuse Normal priors, indicating that the data were informative. In contrast, gender, race, site, and time effects remained wide and weakly identified, consistent with their high variability in the data.
+Gelman–Rubin $\hat{R}$ values for the outcome-model parameters were all approximately 1.00, with upper bounds below 1.03 (@fig-bay2). Some parameters in the missing-data submodels (some delta_time and site_gamma effects) had higher $\hat{R}$ values and greater uncertainty, which is expected given weak identifiability of missingness mechanisms and does not affect inference for the outcome model. Posterior–prior comparisons (@fig-bay3) showed that the main clinical coefficients have posteriors substantially narrower than the diffuse Normal priors, indicating that the data were informative. In contrast, gender, race, site, and time effects remained wide and weakly identified, consistent with their high variability in the data.
 
 ### Results
 
@@ -90,10 +90,6 @@ library(R2jags)
 library(coda)
 ```
 
-# EDA
-
-## Missing values
-
 ```{r}
 # Missing -> NA for Race2
 x <- x |>
@@ -102,11 +98,11 @@ x <- x |>
   )
 ```
 
-## Missing Data Analysis
-
-```{r, fig.height=6, fig.width=8}
+```{r}
 #| label: fig-eda1
 #| fig-cap: "Missing Data"
+#| fig.height: 6
+#| fig.width: 8
 
 x |>
   select(where(~ any(is.na(.)))) |>
@@ -163,8 +159,6 @@ x |>
 gg_miss_fct(x,fct=homeOrRehab) +
   labs(title = "Missigness by Outcome variable")
 ```
-
-## Covariates & Associations
 
 ```{r}
 #| label: fig-eda5
@@ -332,8 +326,6 @@ x |>
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
-
-# Frequentist model
 
 ```{r}
 # MICE
@@ -507,8 +499,6 @@ ggplot(roc_df, aes(x = fpr, y = tpr)) +
   theme_bw()
 ```
 
-### Bayesian Model:
-
 ```{r}
 load("./strokeStudy.RData")
 ```
@@ -602,8 +592,6 @@ mcmc.pars <- list(iter = 10000, burn = 2000, nchain=4, thin=1)
 load("bayes_model_run_final.RData")
 ```
 
-### Bayesian Evaluation:
-
 ```{r}
 sim <- as.mcmc(jags.out)
 ess <- effectiveSize(sim)
@@ -616,6 +604,23 @@ df_ess <- data.frame(
 df_beta <- df_ess[grepl("^beta", df_ess$parameter), ]
 
 kable(df_beta, caption = "ESS for Beta Parameters")
+```
+
+```{r}
+#| label: fig-bay1
+#| fig-cap: "Trace Plots for Beta Parameters"
+
+beta_params <- varnames(sim)[grep("^beta", varnames(sim))]
+
+n <- length(beta_params)
+nrow <- ceiling(n / 4)
+ncol <- 4
+
+par(mfrow = c(nrow, ncol), mar = c(2, 2, 1, 1))
+
+for (param in beta_params) {
+  traceplot(sim[, param], main = param, col = 1:4)
+}
 ```
 
 ```{r, fig.height=6, fig.width=8}
@@ -721,8 +726,6 @@ m_sub <- m_combined[, params_to_plot]
 autocorr.plot(m_sub, lag.max = 40)
 ```
 
-### Bayesian Result
-
 ```{r}
 post_summary <- summary(sim)
 stats <- post_summary$statistics
@@ -746,4 +749,79 @@ beta_sig <- beta_table[ci_exclude_zero, ]
 
 kable(beta_sig, digits = 3, row.names = FALSE,
       caption = "Posterior Results for Bayesian Model")
+```
+
+```{r}
+#| label: fig-bay5
+#| fig-cap: "ROC Curve for Bayesian Model"
+
+vars <- varnames(sim)
+sim_mat <- do.call(rbind, sim)
+
+beta0     <- sim_mat[, "beta0"]
+beta_site <- sim_mat[, grep("^beta_site\\[", vars)]
+beta_time <- sim_mat[, grep("^beta_time\\[", vars)]
+beta_gender <- sim_mat[, grep("^beta_gender\\[", vars)]
+beta_race   <- sim_mat[, grep("^beta_race\\[", vars)]
+beta_age      <- sim_mat[, "beta_age"]
+beta_trans    <- sim_mat[, "beta_transport"]
+beta_notify   <- sim_mat[, "beta_notify"]
+beta_TPA      <- sim_mat[, "beta_TPA"]
+beta_Thromb   <- sim_mat[, "beta_Thromb"]
+beta_tpaComp  <- sim_mat[, "beta_tpaComp"]
+beta_thrComp  <- sim_mat[, "beta_thrComp"]
+
+Site            <- x$siteID
+Time            <- x$Time2
+Age             <- x$Age
+Gender          <- x$Gender
+Race            <- x$Race2
+Transport       <- x$EMSvsCar           # 1 = EMS, 0 = Car
+Notify          <- x$PreHospNotify
+hadTPA          <- x$hadTPA
+hadThrombectomy <- x$hadThrombectomy
+tpaComplic      <- x$tpaComp
+thrComplic      <- x$thrComp
+Y               <- x$homeOrRehab        # 1 = home, 0 = rehab
+
+M <- nrow(sim_mat)
+N <- length(Y)
+
+lp <- matrix(0, nrow = M, ncol = N)
+
+lp <- lp +
+  beta0 + 
+  beta_site[, Site] +
+  beta_time[, Time] +
+  beta_age * matrix(Age, M, N, TRUE) +
+  beta_gender[, Gender] +
+  beta_race[, Race] +
+  beta_trans * matrix(Transport, M, N, TRUE) +
+  beta_notify * matrix(Notify, M, N, TRUE) +
+  beta_TPA * matrix(hadTPA, M, N, TRUE) +
+  beta_Thromb * matrix(hadThrombectomy, M, N, TRUE) +
+  beta_tpaComp * matrix(tpaComplic, M, N, TRUE) +
+  beta_thrComp * matrix(thrComplic, M, N, TRUE)
+
+invlogit <- function(x) 1 / (1 + exp(-x))
+p_samples <- invlogit(lp)
+
+p_mean <- colMeans(p_samples)
+roc_obj <- roc(Y, p_mean)
+
+roc_df <- data.frame(
+  tpr = roc_obj$sensitivities,
+  fpr = 1 - roc_obj$specificities
+)
+
+ggplot(roc_df, aes(x = fpr, y = tpr)) +
+  geom_line(color = "blue", size = 1.2) +
+  geom_abline(linetype = "dashed") +
+  coord_fixed(xlim = c(0,1), ylim = c(0,1)) +
+  labs(
+    x = "False Positive Rate (1 - Specificity)",
+    y = "True Positive Rate (Sensitivity)",
+    title = paste("ROC Curve | AUC =", round(roc_obj$auc, 3))
+  ) +
+  theme_bw()
 ```
